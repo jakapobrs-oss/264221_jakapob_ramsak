@@ -28,6 +28,8 @@ Rules from the assignment:
 The module returns the final price together with a step-by-step breakdown (price before, discount,
 price after for every campaign) and the number of points actually used, so a caller can deduct them.
 
+![How an order is priced](docs/diagrams/pricing-pipeline.svg)
+
 ## Quick start
 
 Requirements: [.NET SDK 10.0](https://dotnet.microsoft.com/download/dotnet/10.0) (any 10.0.x, see `global.json`).
@@ -39,18 +41,18 @@ dotnet run --project src/DiscountModule.Cli -- examples/06-all-categories.json
 
 ```
 Items
-  1 x T-Shirt (Clothing) @ 350.00                              350.00
-  1 x Hat (Accessories) @ 250.00                               250.00
-  1 x Belt (Accessories) @ 230.00                              230.00
-Subtotal                                                       830.00
+  1 x T-Shirt (Clothing) @ 350.00                                            350.00
+  1 x Hat (Accessories) @ 250.00                                             250.00
+  1 x Belt (Accessories) @ 230.00                                            230.00
+Subtotal                                                                     830.00
 
 Discounts (applied in order: Coupon > On Top > Seasonal)
-  [Coupon] 10% off the order (830.00 THB)                      -83.00
-  [On Top] 100 points used (cap 149 = 20% of 747.00 THB)      -100.00
-  [Seasonal] 40.00 THB off every 300.00 THB (2 x 40.00)        -80.00
+  [Coupon] 10% off 830.00 THB                                                -83.00
+  [On Top] 100 points (cap 149 = 20% of 747.00 THB)                         -100.00
+  [Seasonal] 40.00 THB off every 300.00 THB of 647.00 THB (2 x 40.00)        -80.00
 
-Total discount                                                 263.00
-Final price                                                    567.00
+Total discount                                                               263.00
+Final price                                                                  567.00
 Points used: 100
 ```
 
@@ -164,26 +166,31 @@ property names. Both layers collect every problem instead of stopping at the fir
 ## Project structure
 
 ```
-src/DiscountModule/            the module (class library, no dependencies)
-  Models/                      Cart, CartItem, ItemCategory
-  Campaigns/                   Campaign base record + one record per campaign, CampaignCategory, DiscountContext
-  Validation/                  CartValidator, CampaignListValidator, DiscountValidationException
-  DiscountCalculator.cs        entry point: validate → order → apply → breakdown
-  DiscountResult.cs            result + AppliedDiscount steps
-src/DiscountModule.Cli/        command line front end (JSON in, text/JSON out)
-  Input/                       JSON shape (DTOs), reader, mapper to domain types
-  Output/                      text and JSON printers
-tests/DiscountModule.Tests/    unit tests of the module (rules, examples, validation, invariants)
+src/DiscountModule/              the module (class library, no dependencies)
+  Models/                        Cart, CartItem, ItemCategory
+  Campaigns/                     Campaign base record + one record per campaign, CampaignCategory, DiscountContext
+  Validation/                    CartValidator, CampaignListValidator, AmountRules, DiscountValidationException
+  DiscountCalculator.cs          entry point: validate → order → apply → breakdown
+  DiscountResult.cs              result + AppliedDiscount steps
+  Money.cs, InputLimits.cs       satang rounding/formatting; supported magnitudes
+src/DiscountModule.Cli/          command line front end (JSON in, text/JSON out)
+  Input/                         JSON shape (DTOs), reader, mapper to domain types
+  Output/                        text and JSON printers
+tests/DiscountModule.Tests/      unit tests of the module (worked examples, rules, order, validation, breakdown)
 tests/DiscountModule.Cli.Tests/  tests of the CLI (parsing, mapping, exit codes, example files)
-examples/                      runnable order files
-docs/DESIGN.md                 binding design notes, assumptions, test matrix
+examples/                        runnable order files
+docs/DESIGN.md                   binding design notes, assumptions, test matrix
+docs/diagrams/                   the two diagrams used in this README
 ```
+
+![Type model](docs/diagrams/type-model.svg)
 
 ## Design notes
 
 - **Each campaign owns its rule.** `Campaign` is an abstract record; every campaign type validates
-  its own parameters and computes its own discount from a `DiscountContext` (cart + running total).
-  Adding a campaign means adding one record; `DiscountCalculator` does not change (open/closed).
+  its own parameters, computes its own discount from a `DiscountContext` (cart + running total) and
+  describes what it did for the breakdown. Adding a campaign means adding one record;
+  `DiscountCalculator` does not change (open/closed).
 - **The calculator owns the cross-cutting rules**: one campaign per category, application order,
   capping at the running total, rounding, and the breakdown. Those rules belong to the order, not to
   any single campaign.

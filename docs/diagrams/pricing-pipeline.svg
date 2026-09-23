@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="960" height="566" viewBox="0 0 960 566" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="14" fill="#262b30" role="img" aria-labelledby="pricing-pipeline-title pricing-pipeline-desc">
+  <title id="pricing-pipeline-title">How an order is priced</title>
+  <desc id="pricing-pipeline-desc">The specified pricing flow validates all inputs, rejects invalid requests, sorts campaigns by category, caps and rounds each discount, and returns a breakdown; the worked order goes from 830.00 to 567.00, while the current calculation and campaign methods remain unimplemented.</desc>
+  <defs>
+    <marker id="pricing-arrow" markerWidth="6" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L6 4 L0 8 Z" fill="#525960"/></marker>
+  </defs>
+  <rect width="960" height="566" fill="#ffffff"/>
+  <text x="24" y="42" font-size="28" font-weight="600">How an order is priced</text>
+  <text x="24" y="70" fill="#525960">Validate first. Apply at most one campaign per category, in enum order; absent categories are skipped.</text>
+
+  <g fill="none" stroke="#525960" stroke-width="1.5" marker-end="url(#pricing-arrow)">
+    <path d="M108 214 H120"/>
+    <path d="M256 214 H268"/>
+    <path d="M400 214 H412"/>
+    <path d="M524 214 H536"/>
+    <path d="M648 214 H660"/>
+    <path d="M772 214 H784"/>
+    <path d="M188 324 V356"/>
+  </g>
+  <g stroke="#626970" stroke-width="1.2">
+    <rect x="16" y="104" width="92" height="220" rx="6" fill="#f7f8f9"/>
+    <rect x="120" y="104" width="136" height="220" rx="6" fill="#ffffff"/>
+    <rect x="268" y="104" width="132" height="220" rx="6" fill="#f7f8f9"/>
+    <rect x="412" y="104" width="112" height="220" rx="6" fill="#f0f6fb"/>
+    <rect x="536" y="104" width="112" height="220" rx="6" fill="#dfedf7"/>
+    <rect x="660" y="104" width="112" height="220" rx="6" fill="#cbdff0"/>
+    <rect x="784" y="104" width="160" height="220" rx="6" fill="#f7f8f9"/>
+    <rect x="16" y="356" width="344" height="44" rx="6" fill="#f7f8f9"/>
+  </g>
+  <g>
+    <text x="28" y="180" font-weight="600"><tspan x="28">Cart items</tspan><tspan x="28" dy="26">+</tspan><tspan x="28" dy="26">campaign</tspan><tspan x="28" dy="20">list</tspan></text>
+    <text x="132" y="140" font-size="16" font-weight="600"><tspan x="132">Validate</tspan><tspan x="132" dy="22">everything</tspan></text>
+    <text x="132" y="206" font-size="13"><tspan x="132">Cart + campaigns</tspan><tspan x="132" dy="24">Collect all errors</tspan><tspan x="132" dy="24">before arithmetic</tspan></text>
+    <text x="280" y="136" font-size="15" font-weight="600">Initialize</text>
+    <text x="280" y="168" font-size="13"><tspan x="280">running =</tspan><tspan x="280" dy="20">cart.Subtotal</tspan></text>
+    <path d="M280 204 H388" stroke="#c3c8cd"/>
+    <text x="280" y="229" font-weight="600">Sort by</text>
+    <text x="278" y="249" font-size="13">CampaignCategory</text>
+    <text x="280" y="278" font-size="13"><tspan x="280">Coupon → OnTop</tspan><tspan x="280" dy="20">→ Seasonal</tspan></text>
+    <text x="424" y="140" font-size="15" font-weight="600">Coupon</text>
+    <text x="548" y="140" font-size="15" font-weight="600">On Top</text>
+    <text x="672" y="140" font-size="15" font-weight="600">Seasonal</text>
+    <g font-size="13">
+      <text x="422" y="184"><tspan x="422">discount =</tspan><tspan x="422" dy="20">round2(clamp(</tspan><tspan x="422" dy="20">rule, 0,</tspan><tspan x="422" dy="20">running));</tspan><tspan x="422" dy="34">running -=</tspan><tspan x="422" dy="20">discount</tspan></text>
+      <text x="546" y="184"><tspan x="546">discount =</tspan><tspan x="546" dy="20">round2(clamp(</tspan><tspan x="546" dy="20">rule, 0,</tspan><tspan x="546" dy="20">running));</tspan><tspan x="546" dy="34">running -=</tspan><tspan x="546" dy="20">discount</tspan></text>
+      <text x="670" y="184"><tspan x="670">discount =</tspan><tspan x="670" dy="20">round2(clamp(</tspan><tspan x="670" dy="20">rule, 0,</tspan><tspan x="670" dy="20">running));</tspan><tspan x="670" dy="34">running -=</tspan><tspan x="670" dy="20">discount</tspan></text>
+    </g>
+    <text x="796" y="140" font-size="16" font-weight="600">DiscountResult</text>
+    <text x="796" y="181"><tspan x="796">Subtotal</tspan><tspan x="796" dy="28">AppliedDiscounts</tspan><tspan x="796" dy="20" font-size="13" fill="#525960">ordered breakdown</tspan><tspan x="796" dy="30">FinalPrice</tspan><tspan x="796" dy="28">PointsUsed</tspan></text>
+    <rect x="204" y="332" width="52" height="20" fill="#ffffff"/>
+    <text x="208" y="347" font-size="13">invalid</text>
+    <text x="28" y="384" font-size="16" font-weight="600">DiscountValidationException</text>
+    <text x="392" y="351" font-size="13"><tspan x="392">rule = campaign.ComputeDiscount(DiscountContext)</tspan><tspan x="392" dy="22">round2 = 2 decimals, AwayFromZero; clamp = between 0 and running</tspan><tspan x="392" dy="22">Each step records an AppliedDiscount before updating running.</tspan></text>
+  </g>
+
+  <path d="M24 418 H936" stroke="#d4d8dc"/>
+  <text x="24" y="444" font-size="16" font-weight="600">Worked order · THB · seasonal rule: 40 off every 300</text>
+  <g fill="none" stroke="#525960" stroke-width="1.5" marker-end="url(#pricing-arrow)">
+    <path d="M140 486 H250"/><path d="M386 486 H496"/><path d="M632 486 H742"/>
+  </g>
+  <g font-size="26" font-weight="600" text-anchor="middle">
+    <text x="80" y="494">830.00</text><text x="320" y="494">747.00</text><text x="566" y="494">647.00</text><text x="832" y="494">567.00</text>
+  </g>
+  <g text-anchor="middle">
+    <text x="80" y="524">Subtotal</text>
+    <text x="320" y="524">10% coupon · −83.00</text>
+    <text x="566" y="524">100 points · −100.00</text>
+    <text x="832" y="524">Seasonal 2 × 40 · −80.00</text>
+  </g>
+  <path d="M24 550 H936" stroke="#d4d8dc"/>
+</svg>

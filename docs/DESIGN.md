@@ -15,7 +15,9 @@ adapter: it reads a JSON file, calls the module and prints the result.
 | Type | Role |
 |------|------|
 | `Cart`, `CartItem`, `ItemCategory` | Input cart. `CartItem.LineTotal = UnitPrice * Quantity`. `Cart.Subtotal` = sum of line totals. |
-| `Campaign` (abstract record) | One campaign with its parameters. Knows its `Category`, validates its own parameters (`Validate()`) and computes its discount (`ComputeDiscount(DiscountContext)`). |
+| `Campaign` (abstract record) | One campaign with its parameters. Knows its `Category` and `Name`, validates its own parameters (`Validate()`), computes its discount (`ComputeDiscount(DiscountContext)`) and explains it (`Describe(DiscountContext)`, e.g. "15% off Clothing (1,050.00 THB)"). |
+| `CampaignCategory.ToDisplayName()` | "Coupon" / "On Top" / "Seasonal" for messages and output. |
+| `InputLimits` | `MaxAmount` = 1,000,000,000 THB, `MaxQuantity` = 1,000,000 (see A11). |
 | `FixedAmountCoupon`, `PercentageCoupon` | Category **Coupon** |
 | `CategoryPercentageOnTop`, `PointsOnTop` | Category **On Top** |
 | `SeasonalCampaign` | Category **Seasonal** |
@@ -33,13 +35,15 @@ Adding a campaign type = adding one derived record. The calculator is closed for
 3. Sort campaigns by `CampaignCategory` (Coupon = 1, On Top = 2, Seasonal = 3). The order in which the caller passed them is irrelevant.
 4. For each campaign in that order:
    - `raw = campaign.ComputeDiscount(new DiscountContext(cart, running))`
-   - `discount = Money.Round(Math.Min(raw, running))` — never more than what is left, never negative.
-   - record `AppliedDiscount(campaign, priceBefore: running, discount, priceAfter: running - discount, description)`
+   - `discount = Money.Round(Math.Clamp(raw, 0, running))` — never more than what is left, never negative.
+   - record `AppliedDiscount(campaign, priceBefore: running, discount, priceAfter: running - discount, campaign.Describe(context))`
    - `running -= discount`
 5. Return `DiscountResult(subtotal, applied, finalPrice: running)`.
 
 Invariants: `FinalPrice >= 0`, `FinalPrice <= Subtotal`, `TotalDiscount = Subtotal - FinalPrice`,
-each step `PriceAfter = PriceBefore - DiscountAmount`, the input cart is never mutated.
+each step `PriceAfter = PriceBefore - DiscountAmount`, the input cart is never mutated. Every amount in
+the result carries exactly 2 decimal places (`Money.Round` fixes the `decimal` scale), so 550 and 60.0
+print as 550.00 and 60.00 however they were computed.
 
 ## 4. Campaign rules
 

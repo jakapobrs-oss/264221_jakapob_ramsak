@@ -9,7 +9,8 @@ namespace DiscountModule.Cli.Output;
 /// <summary>Renders a <see cref="DiscountResult"/> either as a human readable breakdown or as JSON.</summary>
 public static class ResultPrinter
 {
-    private const int LabelWidth = 56;
+    private const int MinLabelWidth = 56;
+    private const int ColumnGap = 2;
     private const int AmountWidth = 12;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -21,32 +22,38 @@ public static class ResultPrinter
 
     public static void WriteText(Cart cart, DiscountResult result, TextWriter writer)
     {
-        writer.WriteLine("Items");
+        // Rows are collected first so the amount column can be aligned to the longest label.
+        List<(string Label, string? Amount)> rows = [("Items", null)];
         foreach (var item in cart.Items)
         {
-            WriteRow(writer, $"  {item.Quantity} x {item.Name} ({item.Category}) @ {Money(item.UnitPrice)}", Money(item.LineTotal));
+            rows.Add(($"  {item.Quantity} x {item.Name} ({item.Category}) @ {Money(item.UnitPrice)}", Money(item.LineTotal)));
         }
 
-        WriteRow(writer, "Subtotal", Money(result.Subtotal));
-        writer.WriteLine();
-
-        writer.WriteLine("Discounts (applied in order: Coupon > On Top > Seasonal)");
+        rows.Add(("Subtotal", Money(result.Subtotal)));
+        rows.Add(("", null));
+        rows.Add(("Discounts (applied in order: Coupon > On Top > Seasonal)", null));
         if (result.AppliedDiscounts.Count == 0)
         {
-            writer.WriteLine("  (none)");
+            rows.Add(("  (none)", null));
         }
 
         foreach (var applied in result.AppliedDiscounts)
         {
-            WriteRow(writer, $"  [{Label(applied.Campaign.Category)}] {applied.Description}", "-" + Money(applied.DiscountAmount));
+            rows.Add(($"  [{applied.Campaign.Category.ToDisplayName()}] {applied.Description}", "-" + Money(applied.DiscountAmount)));
         }
 
-        writer.WriteLine();
-        WriteRow(writer, "Total discount", Money(result.TotalDiscount));
-        WriteRow(writer, "Final price", Money(result.FinalPrice));
+        rows.Add(("", null));
+        rows.Add(("Total discount", Money(result.TotalDiscount)));
+        rows.Add(("Final price", Money(result.FinalPrice)));
         if (result.PointsUsed > 0)
         {
-            writer.WriteLine($"Points used: {result.PointsUsed}");
+            rows.Add(($"Points used: {result.PointsUsed}", null));
+        }
+
+        var labelWidth = Math.Max(MinLabelWidth, rows.Where(row => row.Amount is not null).Max(row => row.Label.Length) + ColumnGap);
+        foreach (var (label, amount) in rows)
+        {
+            writer.WriteLine(amount is null ? label : label.PadRight(labelWidth) + amount.PadLeft(AmountWidth));
         }
     }
 
@@ -72,16 +79,5 @@ public static class ResultPrinter
         writer.WriteLine(JsonSerializer.Serialize(payload, JsonOptions));
     }
 
-    private static void WriteRow(TextWriter writer, string label, string amount)
-        => writer.WriteLine(label.PadRight(LabelWidth) + amount.PadLeft(AmountWidth));
-
     private static string Money(decimal value) => value.ToString("N2", CultureInfo.InvariantCulture);
-
-    private static string Label(CampaignCategory category) => category switch
-    {
-        CampaignCategory.Coupon => "Coupon",
-        CampaignCategory.OnTop => "On Top",
-        CampaignCategory.Seasonal => "Seasonal",
-        _ => category.ToString(),
-    };
 }
