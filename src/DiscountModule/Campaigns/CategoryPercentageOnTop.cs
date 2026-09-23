@@ -1,4 +1,5 @@
 using DiscountModule.Models;
+using DiscountModule.Validation;
 
 using static System.FormattableString;
 
@@ -18,14 +19,15 @@ public sealed record CategoryPercentageOnTop(ItemCategory ItemCategory, decimal 
             yield return Invariant($"item category must be one of {supported} (got {(int)ItemCategory})");
         }
 
-        if (Percentage <= 0 || Percentage > 100)
+        foreach (string problem in PercentageRules.Validate(Percentage))
         {
-            yield return Invariant($"percentage must be greater than 0 and at most 100 (got {Percentage})");
+            yield return problem;
         }
     }
 
     // A3: the percentage is taken from the listed prices of the matching items, so a coupon applied
     // earlier does not shrink it. The calculator still caps the result at the running total.
+    // Exact for the same reason as PercentageCoupon: at most 2 decimal places in the percentage.
     public override decimal ComputeDiscount(DiscountContext context)
         => CategoryTotal(context.Cart) * (Percentage / 100m);
 
