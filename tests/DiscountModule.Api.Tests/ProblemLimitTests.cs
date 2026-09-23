@@ -36,9 +36,14 @@ public class ProblemLimitTests(WebApplicationFactory<Program> factory) : IClassF
 
         (HttpStatusCode status, string[] errors) = await PostAsync(Json($"{{ \"items\": [{items}] }}"));
 
+        // The first 100 broken rules in item order, then one line that counts the rest.
+        string[] expected =
+        [
+            .. Enumerable.Range(1, 100).Select(n => $"Item #{n} 'Item {n}': unit price must not be negative (got -1)"),
+            "... and 900 more problems not shown",
+        ];
         Assert.Equal(HttpStatusCode.UnprocessableEntity, status);
-        Assert.Equal(ProblemList.MaxReportedProblems + 1, errors.Length);
-        Assert.Equal("... and 900 more problems not shown", errors[^1]);
+        Assert.Equal(expected, errors);
     }
 
     [Fact]
@@ -48,9 +53,16 @@ public class ProblemLimitTests(WebApplicationFactory<Program> factory) : IClassF
 
         (HttpStatusCode status, string[] errors) = await PostAsync(Json(json));
 
+        // Each empty item misses name, category and unitPrice: items 0-32 give 99 problems, item 33 the 100th.
+        string[] expected =
+        [
+            .. Enumerable.Range(0, 34)
+                .SelectMany(index => new[] { "name", "category", "unitPrice" }.Select(field => $"$.items[{index}]: \"{field}\" is required"))
+                .Take(ProblemList.MaxReportedProblems),
+            ProblemList.StoppedMessage,
+        ];
         Assert.Equal(HttpStatusCode.BadRequest, status);
-        Assert.Equal(ProblemList.MaxReportedProblems + 1, errors.Length);
-        Assert.Equal(ProblemList.StoppedMessage, errors[^1]);
+        Assert.Equal(expected, errors);
     }
 
     [Fact]

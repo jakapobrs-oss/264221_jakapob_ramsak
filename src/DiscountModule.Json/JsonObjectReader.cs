@@ -9,6 +9,8 @@ namespace DiscountModule.Json;
 /// Each problem starts with its JSON path, e.g. <c>$.items[0].unitPrice: expected a number, got the string "250"</c>.
 /// Property names match in any letter case. These are all reported: a property given twice, a missing
 /// required property, a value of the wrong JSON type (null included), and a property that no read asked for.
+/// Recording stops once the order has more problems than <see cref="ProblemList.MaxReportedProblems"/>,
+/// even in the middle of one object.
 /// </summary>
 internal sealed class JsonObjectReader
 {
@@ -34,9 +36,15 @@ internal sealed class JsonObjectReader
 
         foreach (JsonProperty property in element.EnumerateObject())
         {
+            // One object may repeat a property 100,000 times; stop instead of building a message for each.
+            if (IsFull(errors))
+            {
+                break;
+            }
+
             if (!TryReadText(() => property.Name, out string? propertyName))
             {
-                errors.Add($"{path}: a property name is not valid text ({UnpairedSurrogate})");
+                Record(errors, $"{path}: a property name is not valid text ({UnpairedSurrogate})");
                 continue;
             }
 
@@ -48,20 +56,23 @@ internal sealed class JsonObjectReader
             }
             else
             {
-                errors.Add($"{path}: property \"{propertyName}\" is given more than once");
+                Record(errors, $"{path}: property \"{propertyName}\" is given more than once");
             }
         }
     }
 
-    /// <summary>True when a problem was recorded for this object, including its duplicate properties.</summary>
-    public bool HasErrors => errors.Count > errorCountAtStart;
+    /// <summary>
+    /// True when a problem was recorded for this object, including its duplicate properties. Once the order
+    /// is past the problem limit, nothing more is recorded, so every object counts as broken from then on.
+    /// </summary>
+    public bool HasErrors => errors.Count > errorCountAtStart || IsFull(errors);
 
     /// <summary>Starts reading <paramref name="element"/>. Returns null and records a problem when it is not an object.</summary>
     public static JsonObjectReader? Open(JsonElement element, string path, List<string> errors)
     {
         if (element.ValueKind != JsonValueKind.Object)
         {
-            errors.Add($"{path}: expected an object, got {Describe(element)}");
+            Record(errors, $"{path}: expected an object, got {Describe(element)}");
             return null;
         }
 
@@ -194,10 +205,31 @@ internal sealed class JsonObjectReader
     {
         foreach (string name in namesInDocumentOrder)
         {
+            // One object may carry 100,000 unknown properties; stop once enough problems are recorded.
+            if (IsFull(errors))
+            {
+                break;
+            }
+
             if (!expectedNames.Contains(name, StringComparer.OrdinalIgnoreCase))
             {
-                errors.Add($"{path}: unexpected property \"{name}\" (expected: {string.Join(", ", expectedNames)})");
+                Record(errors, $"{path}: unexpected property \"{name}\" (expected: {string.Join(", ", expectedNames)})");
             }
+        }
+    }
+
+    /// <summary>
+    /// True once more problems are recorded than are reported. One extra is kept, so the parser can tell
+    /// that the order went past <see cref="ProblemList.MaxReportedProblems"/>.
+    /// </summary>
+    private static bool IsFull(List<string> errors) => errors.Count > ProblemList.MaxReportedProblems;
+
+    /// <summary>Records a problem unless the list is already full. Every problem goes through here.</summary>
+    private static void Record(List<string> errors, string problem)
+    {
+        if (!IsFull(errors))
+        {
+            errors.Add(problem);
         }
     }
 
@@ -297,11 +329,11 @@ internal sealed class JsonObjectReader
 
         if (required)
         {
-            errors.Add($"{path}: \"{name}\" is required");
+            Record(errors, $"{path}: \"{name}\" is required");
         }
 
         return false;
     }
 
-    private void Report(string name, string problem) => errors.Add($"{path}.{name}: {problem}");
+    private void Report(string name, string problem) => Record(errors, $"{path}.{name}: {problem}");
 }
