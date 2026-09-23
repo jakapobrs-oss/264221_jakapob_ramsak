@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="960" height="566" viewBox="0 0 960 566" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif" font-size="14" fill="#262b30" role="img" aria-labelledby="pricing-pipeline-title pricing-pipeline-desc">
   <title id="pricing-pipeline-title">How an order is priced</title>
-  <desc id="pricing-pipeline-desc">The specified pricing flow validates all inputs, rejects invalid requests, sorts campaigns by category, caps and rounds each discount, and returns a breakdown; the worked order goes from 830.00 to 567.00, while the current calculation and campaign methods remain unimplemented.</desc>
+  <desc id="pricing-pipeline-desc">The specified pricing flow validates all inputs, rejects invalid requests, sorts campaigns by category, caps and rounds each discount, and returns a breakdown; the worked order goes from 830.00 to 567.00.</desc>
   <defs>
     <marker id="pricing-arrow" markerWidth="6" markerHeight="8" refX="6" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 L6 4 L0 8 Z" fill="#525960"/></marker>
   </defs>
