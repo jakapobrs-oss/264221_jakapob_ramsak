@@ -17,7 +17,7 @@ adapter: it reads a JSON file, calls the module and prints the result.
 | `Cart`, `CartItem`, `ItemCategory` | Input cart. `CartItem.LineTotal = UnitPrice * Quantity`. `Cart.Subtotal` = sum of line totals. |
 | `Campaign` (abstract record) | One campaign with its parameters. Knows its `Category` and `Name`, validates its own parameters (`Validate()`), computes its discount (`ComputeDiscount(DiscountContext)`) and explains it (`Describe(DiscountContext)`, e.g. "15% off Clothing (1,050.00 THB)"). |
 | `CampaignCategory.ToDisplayName()` | "Coupon" / "On Top" / "Seasonal" for messages and output. |
-| `InputLimits` | `MaxAmount` = 1,000,000,000 THB, `MaxQuantity` = 1,000,000 (see A11). |
+| `InputLimits` | `MaxAmount` = 1,000,000,000 THB, `MaxQuantity` = 1,000,000, `MaxSubtotal` = 1,000,000,000,000,000 THB (see A11). |
 | `FixedAmountCoupon`, `PercentageCoupon` | Category **Coupon** |
 | `CategoryPercentageOnTop`, `PointsOnTop` | Category **On Top** |
 | `SeasonalCampaign` | Category **Seasonal** |
