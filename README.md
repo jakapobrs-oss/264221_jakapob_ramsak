@@ -288,7 +288,9 @@ pwsh tools/mutation-check.ps1        # break the code on purpose and confirm the
 - **Mutation check.** [`tools/mutation-check.ps1`](tools/mutation-check.ps1) breaks 36 rules one at a time
   (rounding mode, sort order, caps, validation, JSON checks, strict UTF-8, output escaping, API limits, the
   problem limit) and runs every test after each change. All 36 are caught.
-- **CI.** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) builds and runs the tests with GitHub Actions.
+- **CI.** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) is a GitHub Actions workflow that builds the
+  solution, checks its formatting with `dotnet format` and runs every test on each push to `main`, on pull
+  requests and on demand.
 
 ## Project structure
 
