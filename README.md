@@ -114,14 +114,15 @@ curl -s -X POST http://localhost:5080/api/discounts -H "Content-Type: applicatio
 | Status | When | Body |
 |--------|------|------|
 | 200 | the order is priced | the result: `subtotal`, `discounts`, `totalDiscount`, `pointsUsed`, `finalPrice` |
-| 400 | the order cannot be read (malformed JSON, wrong shape) | problem details, every problem in `errors` |
+| 400 | the order cannot be read (malformed JSON, wrong shape, not UTF-8) | problem details, the problems in `errors` (up to 100) |
 | 413 | the body is larger than 1 MiB | problem details |
-| 415 | the body is not `application/json` | problem details |
-| 422 | the order breaks a discount rule | problem details, every problem in `errors` |
+| 415 | the body is not `application/json`, or it declares a charset other than UTF-8 | problem details |
+| 422 | the order breaks a discount rule | problem details, the problems in `errors` (up to 100) |
 
 Errors use RFC 9457 problem details (`application/problem+json`). 400 and 422 match the CLI's exit codes
 2 and 1. The size limit is checked before the body is read and again while it is read, because a request
-may not declare its size. The body must be UTF-8, as RFC 8259 requires for JSON.
+may not declare its size. The body must be UTF-8, as RFC 8259 requires for JSON: a UTF-8 byte order mark
+is allowed, while invalid bytes or a UTF-16 byte order mark are refused.
 
 This is a demo front end, not a production service: it has no authentication, rate limiting or HTTPS
 configuration, which a real deployment would add in front of it.
@@ -150,8 +151,8 @@ configuration, which a real deployment would add in front of it.
 - `campaigns` may be empty or left out: the final price is then the subtotal.
 - The file is checked strictly, and every problem is reported with its JSON path: a missing or
   unexpected property (even one set to `null`), a property given twice, a number written as a string,
-  a fractional quantity, a number a `decimal` cannot hold exactly (such as `1e-30`), text that is not
-  valid Unicode, an unknown type or category. `null` is never a valid value; leave an optional property
+  a fractional quantity, a number a `decimal` cannot hold exactly (such as `1e-30`), bytes that are not
+  valid UTF-8, an escaped lone surrogate, an unknown type or category. `null` is never a valid value; leave an optional property
   out instead. When a campaign's `type` is missing or unknown, its other properties are not checked,
   because which ones belong depends on the type.
 
@@ -256,9 +257,11 @@ The front ends check the JSON in two passes. They first report the problems with
 can be read reliably. The CLI prints text taken from the input, such as an item name, with control
 characters escaped (`\n`, `\t`), so each item and each problem stays on its own line.
 
-At most 100 problems are listed per order, followed by a line saying how many were left out. The JSON
-reader stops after 100 problems. Without these limits, a 1 MiB body of empty items would produce about
-a million messages, tens of megabytes for a single request.
+The module itself reports every broken rule. The front ends list at most 100 of them, followed by a line
+saying how many were left out. The JSON reader stops reading after 100 shape problems and ends the list
+with "Stopped after 100 problems; fix these first", because how many are left is not known at that point.
+Without these limits, a 1 MiB body of empty items would produce about a million messages, tens of
+megabytes for a single request.
 
 ## Tests and quality checks
 
@@ -327,9 +330,11 @@ docs/diagrams/                   the two diagrams used in this README
 Choices made on purpose:
 
 - **Reject, don't resolve.** Two campaigns of one category are a usage error. A shop that wants "the best
-  coupon wins" would change one rule in `CampaignListValidator`, and no campaign would notice.
+  coupon wins" would drop that check and add a selection step to the calculator that prices each
+  candidate and keeps the cheapest result. The campaign records themselves would not change.
 - **Exceptions for invalid input.** `DiscountValidationException` carries every problem. A team that prefers
-  a result type could switch, and only `Calculate` would change.
+  a result type could switch: `Calculate` would return it, and the two front ends that catch the
+  exception today would check the result instead.
 - **Validation in the calculator, not in record constructors.** Invalid campaigns can be created, so every
   problem is reported in one go instead of the first constructor throwing.
 - **A hand-written JSON reader** instead of deserializing into classes. It is more code, but it reports every
