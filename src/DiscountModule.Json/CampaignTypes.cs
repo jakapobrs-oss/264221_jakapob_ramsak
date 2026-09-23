@@ -1,11 +1,11 @@
 using DiscountModule.Campaigns;
 using DiscountModule.Models;
 
-namespace DiscountModule.Cli.Input;
+namespace DiscountModule.Json;
 
 /// <summary>
 /// The campaign types accepted in the JSON input and the parameters each one reads.
-/// Accepting a new campaign type from JSON means adding one entry to <see cref="Types"/>;
+/// Accepting a new campaign type from JSON (CLI and HTTP API alike) means adding one entry to <see cref="Types"/>;
 /// the rule itself lives in the module as a new <see cref="Campaign"/> record.
 /// </summary>
 internal static class CampaignTypes

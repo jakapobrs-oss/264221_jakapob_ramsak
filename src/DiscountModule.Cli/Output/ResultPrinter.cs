@@ -1,8 +1,7 @@
 using System.Globalization;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using DiscountModule.Campaigns;
+using DiscountModule.Json;
 using DiscountModule.Models;
 
 namespace DiscountModule.Cli.Output;
@@ -13,13 +12,6 @@ public static class ResultPrinter
     private const int MinLabelWidth = 56;
     private const int ColumnGap = 2;
     private const int AmountWidth = 12;
-
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        Converters = { new JsonStringEnumConverter() },
-    };
 
     public static void WriteText(Cart cart, DiscountResult result, TextWriter writer)
     {
@@ -70,24 +62,8 @@ public static class ResultPrinter
         ArgumentNullException.ThrowIfNull(result);
         ArgumentNullException.ThrowIfNull(writer);
 
-        var payload = new
-        {
-            result.Subtotal,
-            Discounts = result.AppliedDiscounts.Select(applied => new
-            {
-                applied.Campaign.Category,
-                Campaign = applied.Campaign.Name,
-                applied.Description,
-                applied.PriceBefore,
-                applied.DiscountAmount,
-                applied.PriceAfter,
-            }),
-            result.TotalDiscount,
-            result.PointsUsed,
-            result.FinalPrice,
-        };
-
-        writer.WriteLine(JsonSerializer.Serialize(payload, JsonOptions));
+        // Same shape as the HTTP API returns, so a script can switch between the two.
+        writer.WriteLine(PricedOrder.From(result).ToJson());
     }
 
     private static string Money(decimal value) => value.ToString("N2", CultureInfo.InvariantCulture);

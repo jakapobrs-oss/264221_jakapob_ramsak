@@ -1,4 +1,4 @@
-using DiscountModule.Cli.Input;
+using DiscountModule.Json;
 using DiscountModule.Cli.Output;
 using DiscountModule.Validation;
 

@@ -1,4 +1,4 @@
-namespace DiscountModule.Cli.Input;
+namespace DiscountModule.Json;
 
 /// <summary>
 /// The input could not be turned into a cart and a campaign list: the file cannot be read, the JSON is

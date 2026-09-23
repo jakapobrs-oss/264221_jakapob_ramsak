@@ -1,8 +1,8 @@
 using DiscountModule.Campaigns;
-using DiscountModule.Cli.Input;
+using DiscountModule.Json;
 using DiscountModule.Models;
 
-namespace DiscountModule.Cli.Tests;
+namespace DiscountModule.Json.Tests;
 
 public class OrderRequestParserTests
 {

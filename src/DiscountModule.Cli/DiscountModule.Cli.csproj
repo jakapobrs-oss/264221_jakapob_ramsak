@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DiscountModule\DiscountModule.csproj" />
+    <ProjectReference Include="..\DiscountModule.Json\DiscountModule.Json.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 
-namespace DiscountModule.Cli.Input;
+namespace DiscountModule.Json;
 
 /// <summary>
 /// Reads the properties of one JSON object and records every problem instead of stopping at the first.

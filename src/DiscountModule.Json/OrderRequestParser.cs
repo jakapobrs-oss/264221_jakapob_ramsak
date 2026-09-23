@@ -3,13 +3,13 @@ using System.Text.Json;
 using DiscountModule.Campaigns;
 using DiscountModule.Models;
 
-namespace DiscountModule.Cli.Input;
+namespace DiscountModule.Json;
 
 /// <summary>An order read from JSON, ready to be handed to <see cref="DiscountCalculator"/>.</summary>
 public sealed record OrderRequest(Cart Cart, IReadOnlyList<Campaign> Campaigns);
 
 /// <summary>
-/// Turns the JSON input into a cart and a campaign list.
+/// Turns a JSON order into a cart and a campaign list, for both the CLI and the HTTP API.
 /// It checks the shape of the document: JSON types, required and unexpected properties, known campaign types
 /// and categories. It reports every shape problem at once; a JSON syntax error stops it at the first one.
 /// Business rules such as a negative price or two coupons are left to <see cref="DiscountCalculator"/>,
