@@ -2,6 +2,7 @@ using System.Text;
 using static System.FormattableString;
 using DiscountModule.Json;
 using DiscountModule.Validation;
+using Microsoft.Net.Http.Headers;
 
 namespace DiscountModule.Api;
 
@@ -26,6 +27,14 @@ public static class DiscountEndpoint
             return Problem(StatusCodes.Status415UnsupportedMediaType, "Send the order as application/json", []);
         }
 
+        if (OtherCharset(request) is { } charset)
+        {
+            return Problem(
+                StatusCodes.Status415UnsupportedMediaType,
+                "Send the order as UTF-8 JSON",
+                [$"charset \"{charset}\" is not supported; use utf-8 or leave the charset out"]);
+        }
+
         string? json = await ReadBodyAsync(request, cancellationToken);
         if (json is null)
         {
@@ -40,12 +49,31 @@ public static class DiscountEndpoint
         }
         catch (InputFormatException ex)
         {
+            // Already capped by the parser (ProblemList.MaxReportedProblems).
             return Problem(StatusCodes.Status400BadRequest, "The order could not be read", ex.Errors);
         }
         catch (DiscountValidationException ex)
         {
-            return Problem(StatusCodes.Status422UnprocessableEntity, "The order breaks a discount rule", ex.Errors);
+            // Every broken rule is one message, so a large order could list thousands; show the first ones only.
+            return Problem(StatusCodes.Status422UnprocessableEntity, "The order breaks a discount rule", ProblemList.ForDisplay(ex.Errors));
         }
+    }
+
+    /// <summary>
+    /// The charset named in Content-Type when it is not UTF-8, otherwise null. JSON exchanged between systems
+    /// is UTF-8 (RFC 8259), so no charset means UTF-8; any other one is refused rather than decoded wrongly.
+    /// </summary>
+    private static string? OtherCharset(HttpRequest request)
+    {
+        if (!MediaTypeHeaderValue.TryParse(request.ContentType, out MediaTypeHeaderValue? mediaType) || !mediaType.Charset.HasValue)
+        {
+            return null;
+        }
+
+        string charset = HeaderUtilities.RemoveQuotes(mediaType.Charset).ToString();
+        return charset.Equals("utf-8", StringComparison.OrdinalIgnoreCase) || charset.Equals("utf8", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : charset;
     }
 
     /// <summary>
