@@ -48,7 +48,11 @@ $mutants = @(
     @{ Name = 'CLI: -- does not end the options'; File = 'src/DiscountModule.Cli/CliApp.cs'; Find = 'optionsEnded = true;'; Replace = 'optionsEnded = false;' },
     @{ Name = 'API: body size not checked while reading'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'if (body.Length + read > MaxOrderBytes)'; Replace = 'if (body.Length < 0)' },
     @{ Name = 'API: declared size not checked'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'if (request.ContentLength > MaxOrderBytes)'; Replace = 'if (request.ContentLength < 0)' },
-    @{ Name = 'API: broken rule answered as 400'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'StatusCodes.Status422UnprocessableEntity'; Replace = 'StatusCodes.Status400BadRequest' }
+    @{ Name = 'API: broken rule answered as 400'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'StatusCodes.Status422UnprocessableEntity'; Replace = 'StatusCodes.Status400BadRequest' },
+    @{ Name = 'API: a charset other than UTF-8 accepted'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'if (OtherCharset(request) is { } charset)'; Replace = 'if (OtherCharset(request) is { } charset && charset.Length < 0)' },
+    @{ Name = 'problems: JSON reader never stops at the limit'; File = 'src/DiscountModule.Json/OrderRequestParser.cs'; Find = '=> errors.Count > ProblemList.MaxReportedProblems;'; Replace = '=> errors.Count < 0;' },
+    @{ Name = 'problems: CLI lists every broken rule'; File = 'src/DiscountModule.Cli/CliApp.cs'; Find = 'ProblemList.ForDisplay(ex.Errors)'; Replace = 'ex.Errors' },
+    @{ Name = 'problems: API lists every broken rule'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'ProblemList.ForDisplay(ex.Errors)'; Replace = 'ex.Errors' }
 )
 
 $survivors = 0
