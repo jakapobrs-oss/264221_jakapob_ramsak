@@ -26,7 +26,8 @@ public static class DiscountCalculator
         }
 
         // Valid prices are whole satang within InputLimits, so the subtotal is exact and cannot overflow.
-        decimal subtotal = cart.Subtotal;
+        // Money.Round does not change its value here; it only fixes it at 2 decimal places.
+        decimal subtotal = Money.Round(cart.Subtotal);
         decimal runningTotal = subtotal;
         List<AppliedDiscount> breakdown = [];
 

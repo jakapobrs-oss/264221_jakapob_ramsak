@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using DiscountModule.Campaigns;
 using DiscountModule.Models;
 
@@ -50,6 +52,18 @@ public class BreakdownTests
 
         string[] expected = ["50.00 THB off", "15% off Clothing (1,050.00 THB)"];
         Assert.Equal(expected, result.AppliedDiscounts.Select(step => step.Description));
+    }
+
+    [Fact]
+    public void Every_amount_in_the_result_carries_exactly_two_decimal_places()
+    {
+        // Prices given as whole numbers (350, 250) and a 10% step (60.0) must still come out as satang.
+        DiscountResult result = DiscountCalculator.Calculate(SampleCarts.TShirtAndHat(), [new PercentageCoupon(10m)]);
+
+        AppliedDiscount step = Assert.Single(result.AppliedDiscounts);
+        string[] expected = ["600.00", "600.00", "60.00", "540.00", "540.00", "60.00"];
+        decimal[] amounts = [result.Subtotal, step.PriceBefore, step.DiscountAmount, step.PriceAfter, result.FinalPrice, result.TotalDiscount];
+        Assert.Equal(expected, amounts.Select(amount => amount.ToString(CultureInfo.InvariantCulture)));
     }
 
     [Fact]
