@@ -65,6 +65,22 @@ public class OrderRequestParserTests
     }
 
     [Fact]
+    public void Numbers_keep_their_exact_value_however_they_are_written()
+    {
+        // Trailing zeros, exponents and the largest decimal are all read without changing the value.
+        OrderRequest request = OrderRequestParser.Parse("""
+            { "items": [ { "name": "A", "category": "Clothing", "unitPrice": 19.90 },
+                         { "name": "B", "category": "Clothing", "unitPrice": 1.25e2 },
+                         { "name": "C", "category": "Clothing", "unitPrice": 5E-1 },
+                         { "name": "D", "category": "Clothing", "unitPrice": 79228162514264337593543950335 },
+                         { "name": "E", "category": "Clothing", "unitPrice": -0.0 } ] }
+            """);
+
+        decimal[] expected = [19.90m, 125m, 0.5m, decimal.MaxValue, 0m];
+        Assert.Equal(expected, request.Cart.Items.Select(item => item.UnitPrice));
+    }
+
+    [Fact]
     public void A_whole_number_may_be_written_with_a_decimal_point_or_an_exponent()
     {
         OrderRequest request = OrderRequestParser.Parse("""
@@ -110,7 +126,11 @@ public class OrderRequestParserTests
     [InlineData("""{ "items": [ { "name": 7, "category": "Clothing", "unitPrice": 1 } ] }""", """$.items[0].name: expected a string, got the number 7""")]
     [InlineData("""{ "items": [ { "name": "Hat", "category": "Accessories", "unitPrice": "250" } ] }""", """$.items[0].unitPrice: expected a number, got the string "250" """)]
     [InlineData("""{ "items": [ { "name": "Hat", "category": "Accessories", "unitPrice": 1e30 } ] }""", """$.items[0].unitPrice: 1e30 is out of range""")]
+    [InlineData("""{ "items": [ { "name": "Hat", "category": "Accessories", "unitPrice": 1e-30 } ] }""", """$.items[0].unitPrice: 1e-30 is too small""")]
+    [InlineData("""{ "items": [ { "name": "Hat", "category": "Accessories", "unitPrice": 100.000000000000000000000000001 } ] }""", """$.items[0].unitPrice: 100.000000000000000000000000001 has more digits than can be read exactly""")]
+    [InlineData("""{ "items": [ { "name": "Hat", "category": "Accessories", "unitPrice": 250, "quantity": 2.00000000000000000000000000001 } ] }""", """$.items[0].quantity: 2.00000000000000000000000000001 has more digits than can be read exactly""")]
     [InlineData("""{ "items": [ { "name": "Hat", "category": "Accessories", "unitPrice": 250, "quantity": 1.5 } ] }""", """$.items[0].quantity: expected a whole number, got 1.5""")]
+    [InlineData("""{ "items": [ { "name": "Hat", "category": "Accessories", "unitPrice": 250, "quantity": 2.0000000000000000000000000001 } ] }""", """$.items[0].quantity: expected a whole number, got 2.0000000000000000000000000001""")]
     [InlineData("""{ "items": [ { "name": "Hat", "category": "Accessories", "unitPrice": 250, "quantity": null } ] }""", """$.items[0].quantity: expected a whole number, got null""")]
     [InlineData("""{ "items": [ { "name": "Hat", "category": "Accessories", "unitPrice": 250, "quantity": 3000000000 } ] }""", """$.items[0].quantity: 3000000000 is out of range""")]
     [InlineData("""{ "items": [ { "name": "Hat", "category": "Shoes", "unitPrice": 250 } ] }""", """$.items[0].category: unknown value "Shoes" (expected one of: Clothing, Accessories, Electronics)""")]
@@ -176,7 +196,7 @@ public class OrderRequestParserTests
     }
 
     [Fact]
-    public void Malformed_json_is_reported_with_its_line_and_position()
+    public void Malformed_json_is_reported_with_its_line_and_column()
     {
         // Line 3 is missing the comma after "Hat".
         InputFormatException error = ParseFails("""
@@ -187,7 +207,17 @@ public class OrderRequestParserTests
             }
             """);
 
-        Assert.StartsWith("Malformed JSON at line 3, position 21: ", Assert.Single(error.Errors));
+        Assert.StartsWith("Malformed JSON at line 3, column 21: ", Assert.Single(error.Errors));
+    }
+
+    [Fact]
+    public void The_column_of_a_syntax_error_counts_characters_not_bytes()
+    {
+        // The comma after "เสื้อ" is missing. Its 5 Thai characters take 15 bytes in UTF-8, so a byte
+        // count would say 42; the character column is 32.
+        InputFormatException error = ParseFails("""{ "items": [ { "name": "เสื้อ" "x": 1 } ] }""");
+
+        Assert.StartsWith("Malformed JSON at line 1, column 32: ", Assert.Single(error.Errors));
     }
 
     [Theory]

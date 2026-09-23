@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using DiscountModule.Campaigns;
 using DiscountModule.Models;
@@ -85,13 +86,25 @@ public static class OrderRequestParser
         }
         catch (JsonException ex)
         {
-            // The message ends with "LineNumber: 0 | BytePositionInLine: 2."; report the position 1-based instead.
+            // The message ends with "LineNumber: 0 | BytePositionInLine: 2."; report line and column 1-based instead.
             string reason = ex.Message.Split(" LineNumber:", 2)[0].TrimEnd('.', ' ');
-            string location = ex.LineNumber is { } line && ex.BytePositionInLine is { } position
-                ? $" at line {line + 1}, position {position + 1}"
+            string location = ex.LineNumber is { } line && ex.BytePositionInLine is { } bytePosition
+                ? $" at line {line + 1}, column {ColumnOf(json, line, bytePosition)}"
                 : "";
             throw new InputFormatException($"Malformed JSON{location}: {reason}");
         }
+    }
+
+    /// <summary>
+    /// Converts the reader's position, counted in UTF-8 bytes, into a 1-based character column.
+    /// The two differ after non-ASCII text: each Thai letter is 3 bytes but 1 character.
+    /// </summary>
+    private static long ColumnOf(string json, long line, long bytePosition)
+    {
+        string lineText = json.Split('\n').ElementAtOrDefault((int)line) ?? "";
+        byte[] lineBytes = Encoding.UTF8.GetBytes(lineText);
+        int byteCount = (int)Math.Clamp(bytePosition, 0, lineBytes.Length);
+        return Encoding.UTF8.GetCharCount(lineBytes, 0, byteCount) + 1;
     }
 
     private static OrderRequest? ReadOrder(JsonElement root, List<string> errors)

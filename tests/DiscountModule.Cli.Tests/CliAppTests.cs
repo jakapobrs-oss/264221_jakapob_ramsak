@@ -193,7 +193,7 @@ public class CliAppTests
         var (exitCode, _, stderr) = RunWithInput("{ not json", "-");
 
         Assert.Equal(CliApp.ExitInputError, exitCode);
-        Assert.StartsWith("Input error (1):" + Environment.NewLine + "  - Malformed JSON at line 1, position 3: ", stderr);
+        Assert.StartsWith("Input error (1):" + Environment.NewLine + "  - Malformed JSON at line 1, column 3: ", stderr);
     }
 
     [Fact]

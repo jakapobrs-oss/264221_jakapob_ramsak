@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace DiscountModule.Cli.Input;
@@ -84,13 +85,7 @@ internal sealed class JsonObjectReader
             return null;
         }
 
-        if (!value.TryGetDecimal(out decimal number))
-        {
-            Report(name, $"{value.GetRawText()} is out of range");
-            return null;
-        }
-
-        return number;
+        return TryConvert(name, value, out decimal number) ? number : null;
     }
 
     /// <summary>Reads a whole number. 3, 3.0 and 3e0 are accepted; 3.5 is not.</summary>
@@ -107,9 +102,8 @@ internal sealed class JsonObjectReader
             return null;
         }
 
-        if (!value.TryGetDecimal(out decimal number))
+        if (!TryConvert(name, value, out decimal number))
         {
-            Report(name, $"{value.GetRawText()} is out of range");
             return null;
         }
 
@@ -196,6 +190,67 @@ internal sealed class JsonObjectReader
         JsonValueKind.Number => $"the number {element.GetRawText()}",
         _ => element.GetRawText(), // true, false or null
     };
+
+    /// <summary>
+    /// Converts a JSON number to <see cref="decimal"/>, or reports why that would change its value.
+    /// <see cref="JsonElement.TryGetDecimal(out decimal)"/> rounds silently beyond the ~28 significant
+    /// digits a decimal holds: 1e-30 would become 0 (a free item) and 100.000000000000000000000000001
+    /// would become 100, hiding digits from the module's 2-decimal rules.
+    /// </summary>
+    private bool TryConvert(string name, JsonElement value, out decimal number)
+    {
+        string written = value.GetRawText();
+        if (!value.TryGetDecimal(out number))
+        {
+            Report(name, $"{written} is out of range");
+            return false;
+        }
+
+        string? writtenValue = CanonicalNumber(written);
+        if (writtenValue != CanonicalNumber(number.ToString(CultureInfo.InvariantCulture)))
+        {
+            Report(name, number == 0 && writtenValue != "0"
+                ? $"{written} is too small"
+                : $"{written} has more digits than can be read exactly");
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Writes a number as its sign, significant digits and exponent, so that equal values compare equal
+    /// however they are written: "100.50", "1.005e2" and "1005E-1" all become "1005e-1"; any zero becomes "0".
+    /// Returns null when the exponent is too large to read, which no decimal can match.
+    /// </summary>
+    private static string? CanonicalNumber(string text)
+    {
+        bool negative = text.StartsWith('-');
+        string unsigned = negative ? text[1..] : text;
+
+        int exponentStart = unsigned.IndexOfAny(['e', 'E']);
+        string mantissa = exponentStart < 0 ? unsigned : unsigned[..exponentStart];
+        int point = mantissa.IndexOf('.');
+        string digits = point < 0 ? mantissa : mantissa.Remove(point, 1);
+
+        string withoutLeadingZeros = digits.TrimStart('0');
+        if (withoutLeadingZeros.Length == 0)
+        {
+            return "0";
+        }
+
+        long exponent = 0;
+        if (exponentStart >= 0
+            && !long.TryParse(unsigned[(exponentStart + 1)..], NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out exponent))
+        {
+            return null;
+        }
+
+        string significant = withoutLeadingZeros.TrimEnd('0');
+        exponent -= point < 0 ? 0 : mantissa.Length - point - 1;          // digits after the point
+        exponent += withoutLeadingZeros.Length - significant.Length;     // trailing zeros removed
+        return $"{(negative ? "-" : "")}{significant}e{exponent}";
+    }
 
     private bool TryGet(string name, bool required, out JsonElement value)
     {

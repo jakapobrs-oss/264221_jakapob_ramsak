@@ -102,8 +102,8 @@ Problems are printed on stderr, one per line.
 - `campaigns` may be empty or left out: the final price is then the subtotal.
 - The file is checked strictly, and every problem is reported with its JSON path: a missing or
   unexpected property (even one set to `null`), a property given twice, a number written as a string,
-  a fractional quantity, an unknown type or category. `null` is never a valid value; leave an optional
-  property out instead.
+  a fractional quantity, a number a `decimal` cannot hold exactly (such as `1e-30`), an unknown type or
+  category. `null` is never a valid value; leave an optional property out instead.
 
 All files in [`examples/`](examples/) are runnable:
 

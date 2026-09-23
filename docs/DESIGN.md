@@ -160,11 +160,13 @@ The CLI's `OrderRequestParser` checks the document's shape and leaves business r
   may be left out (no campaigns).
 - Reported, each with its JSON path: a missing required property; an unexpected property, even one set to
   `null`; a property given twice, including in a different letter case; a value of the wrong JSON type
-  (a number written as a string, `null`, a fractional quantity); a number out of range; an unknown campaign
+  (a number written as a string, `null`, a fractional quantity); a number out of range, or one a `decimal`
+  cannot hold exactly (`1e-30` would silently become 0, and `100.000000000000000000000000001` would become
+  100 and slip past the 2-decimal rule); an unknown campaign
   type or category, listing the valid ones. Categories match whole names only, so `"1"` or
   `"Clothing,Accessories"` are rejected.
 - Every shape problem in the document is reported in one pass (exit code 2). A JSON syntax error stops the
-  parser at that error and is reported with its line and position.
+  parser at that error and is reported with its line and character column.
 - When the shape is right, the module's validation errors are printed one per line (exit code 1).
   Success is 0; an unexpected failure prints one line and exits with 3.
 - The campaign types live in one table (`CampaignTypes`): each entry names the type and reads its
@@ -196,7 +198,7 @@ CLI (`tests/DiscountModule.Cli.Tests`)
 - each example file produces the expected final price
 - parser: every campaign type and default, letter case, comments, whole numbers written as 2.0 or 1e2,
   and each shape problem from section 7 with its exact message and JSON path
-- every shape problem in a document reported in one pass; malformed JSON with line and position;
+- every shape problem in a document reported in one pass; malformed JSON with line and column (in characters, also after Thai text); numbers that a decimal cannot hold exactly;
   empty input; missing file; a failing input stream
 - exit code 1 with every broken rule listed (`invalid-values.json`), exit code 2 with every shape problem
   listed (`invalid-format.json`), usage errors (no file, two files, unknown option, `--`)
