@@ -8,12 +8,14 @@ namespace DiscountModule.Validation;
 
 /// <summary>
 /// Checks the cart rules (design notes, section 5) and returns every problem found, not just the first.
-/// It never computes line totals, so even absurd values are reported instead of overflowing.
+/// Line totals are only added up once every line has passed its own checks, so even absurd values are
+/// reported instead of overflowing.
 /// </summary>
 internal static class CartValidator
 {
     private static readonly string SupportedCategories = string.Join(", ", Enum.GetNames<ItemCategory>());
     private static readonly string MaxQuantityText = InputLimits.MaxQuantity.ToString("N0", CultureInfo.InvariantCulture);
+    private static readonly string MaxSubtotalText = InputLimits.MaxSubtotal.ToString("N0", CultureInfo.InvariantCulture);
 
     public static IEnumerable<string> Validate(Cart? cart)
     {
@@ -30,12 +32,21 @@ internal static class CartValidator
             yield break;
         }
 
+        bool everyLineIsValid = true;
         for (int index = 0; index < cart.Items.Count; index++)
         {
             foreach (string error in ValidateItem(cart.Items[index], position: index + 1))
             {
+                everyLineIsValid = false;
                 yield return error;
             }
+        }
+
+        // Only checked when every line is valid: each line total is then at most MaxSubtotal, so the sum
+        // cannot overflow, and a broken line is not reported a second time as a subtotal problem.
+        if (everyLineIsValid && cart.Subtotal > InputLimits.MaxSubtotal)
+        {
+            yield return Invariant($"Cart subtotal is too large (max {MaxSubtotalText}, got {cart.Subtotal})");
         }
     }
 

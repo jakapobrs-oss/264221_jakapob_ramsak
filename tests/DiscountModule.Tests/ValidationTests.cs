@@ -111,6 +111,36 @@ public class ValidationTests
         Assert.Equal(expected, Reject(cart, []).Errors);
     }
 
+    [Fact]
+    public void A_cart_subtotal_above_the_limit_is_rejected()
+    {
+        CartItem largestLine = new("Gold", ItemCategory.Accessories, InputLimits.MaxAmount, InputLimits.MaxQuantity);
+        Cart cart = new([largestLine, largestLine]);
+
+        Assert.Equal(
+            "Cart subtotal is too large (max 1,000,000,000,000,000, got 2000000000000000)",
+            SingleError(cart, []));
+    }
+
+    [Fact]
+    public void A_cart_subtotal_exactly_at_the_limit_is_accepted()
+    {
+        Cart cart = new([new CartItem("Gold", ItemCategory.Accessories, InputLimits.MaxAmount, InputLimits.MaxQuantity)]);
+
+        DiscountResult result = DiscountCalculator.Calculate(cart, []);
+
+        Assert.Equal(InputLimits.MaxSubtotal, result.FinalPrice);
+    }
+
+    [Fact]
+    public void A_broken_line_is_not_reported_again_as_a_subtotal_problem()
+    {
+        CartItem largestLine = new("Gold", ItemCategory.Accessories, InputLimits.MaxAmount, InputLimits.MaxQuantity);
+        Cart cart = new([largestLine, largestLine, new CartItem("Broken", ItemCategory.Clothing, -1m)]);
+
+        Assert.Equal("Item #3 'Broken': unit price must not be negative (got -1)", SingleError(cart, []));
+    }
+
     // ---- Campaign list ----
 
     [Fact]

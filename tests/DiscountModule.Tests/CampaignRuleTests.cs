@@ -177,6 +177,24 @@ public class CampaignRuleTests
     }
 
     [Fact]
+    public void Discounts_on_the_largest_accepted_order_are_still_exact()
+    {
+        // Subtotal 999,999,999,999,950.01 (just under InputLimits.MaxSubtotal). 99.99% of it is exactly
+        // 999,899,999,999,950.014999, which must round down to .01. If decimal rounded the product first,
+        // .014999 could become .015 and then round up to .02.
+        Cart cart = new([
+            new CartItem("Gold", ItemCategory.Accessories, 999_999_999.99m, InputLimits.MaxQuantity),
+            new CartItem("Silver", ItemCategory.Accessories, 9_950.01m),
+        ]);
+
+        DiscountResult result = DiscountCalculator.Calculate(cart, [new PercentageCoupon(99.99m)]);
+
+        Assert.Equal(999_999_999_999_950.01m, result.Subtotal);
+        Assert.Equal(999_899_999_999_950.01m, Assert.Single(result.AppliedDiscounts).DiscountAmount);
+        Assert.Equal(100_000_000_000.00m, result.FinalPrice);
+    }
+
+    [Fact]
     public void Without_campaigns_the_final_price_is_the_subtotal()
     {
         DiscountResult result = DiscountCalculator.Calculate(SampleCarts.TShirtAndHat(), []);

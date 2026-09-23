@@ -12,9 +12,10 @@ public sealed record PercentageCoupon(decimal Percentage) : Campaign
 
     public override IEnumerable<string> Validate() => PercentageRules.Validate(Percentage);
 
-    // Percentage has at most 2 decimal places (validated), so Percentage / 100 has at most 4 and the
-    // product with the running total (2 places) is exact; Money.Round in the calculator is the only
-    // rounding. Dividing first also keeps the intermediate value below the running total (no overflow).
+    // Percentage has at most 2 decimal places (validated), so Percentage / 100 has at most 4. The running
+    // total has 2 and is at most InputLimits.MaxSubtotal, so the product needs at most 22 significant
+    // digits and is exact; Money.Round in the calculator is the only rounding. Dividing first also keeps
+    // the intermediate value below the running total (no overflow).
     public override decimal ComputeDiscount(DiscountContext context)
         => context.RunningTotal * (Percentage / 100m);
 
