@@ -31,6 +31,14 @@ public class DiscountEndpointTests(WebApplicationFactory<Program> factory) : ICl
     private Task<HttpResponseMessage> PostAsync(string body, string mediaType = "application/json")
         => client.PostAsync(Endpoint, new StringContent(body, Encoding.UTF8, mediaType));
 
+    /// <summary>Posts raw bytes as application/json with no charset, as a client sending a file would.</summary>
+    private Task<HttpResponseMessage> PostBytesAsync(byte[] bytes)
+    {
+        var content = new ByteArrayContent(bytes);
+        content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+        return client.PostAsync(Endpoint, content);
+    }
+
     private static async Task<JsonElement> ReadJsonAsync(HttpResponseMessage response)
     {
         using JsonDocument document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -218,12 +226,38 @@ public class DiscountEndpointTests(WebApplicationFactory<Program> factory) : ICl
     public async Task A_utf8_byte_order_mark_is_accepted()
     {
         byte[] bytes = [.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(Example("01-fixed-amount.json"))];
-        var content = new ByteArrayContent(bytes);
-        content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 
-        HttpResponseMessage response = await client.PostAsync(Endpoint, content);
+        HttpResponseMessage response = await PostBytesAsync(bytes);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(550.00m, (await ReadJsonAsync(response)).GetProperty("finalPrice").GetDecimal());
+    }
+
+    [Fact]
+    public async Task A_body_that_is_not_utf8_is_400_and_gives_the_offset()
+    {
+        const string BeforeName = "{ \"items\": [ { \"name\": \"";
+        byte[] bytes = [.. Encoding.UTF8.GetBytes(BeforeName), 0xFF, .. Encoding.UTF8.GetBytes("\", \"category\": \"Clothing\", \"unitPrice\": 1 } ] }")];
+
+        HttpResponseMessage response = await PostBytesAsync(bytes);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        JsonElement problem = await ReadJsonAsync(response);
+        Assert.Equal("The order could not be read", problem.GetProperty("title").GetString());
+        Assert.Equal([$"Input is not valid UTF-8 text (byte 0xFF at offset {BeforeName.Length})"], Errors(problem));
+    }
+
+    [Fact]
+    public async Task A_utf16_body_without_a_charset_is_400_even_with_a_byte_order_mark()
+    {
+        byte[] bytes = [.. Encoding.Unicode.GetPreamble(), .. Encoding.Unicode.GetBytes(Example("01-fixed-amount.json"))];
+
+        HttpResponseMessage response = await PostBytesAsync(bytes);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(
+            ["Input is UTF-16 text (it starts with a UTF-16 byte order mark); it must be UTF-8"],
+            Errors(await ReadJsonAsync(response)));
     }
 
     [Fact]

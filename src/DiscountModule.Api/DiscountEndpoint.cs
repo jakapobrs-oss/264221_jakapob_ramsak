@@ -1,5 +1,3 @@
-using System.Text;
-
 using DiscountModule.Json;
 using DiscountModule.Validation;
 
@@ -38,15 +36,16 @@ public static class DiscountEndpoint
                 [$"charset \"{charset}\" is not supported; use utf-8 or leave the charset out"]);
         }
 
-        string? json = await ReadBodyAsync(request, cancellationToken);
-        if (json is null)
+        byte[]? body = await ReadBodyAsync(request, cancellationToken);
+        if (body is null)
         {
             return Problem(StatusCodes.Status413PayloadTooLarge, Invariant($"The order is larger than {MaxOrderBytes:N0} bytes"), []);
         }
 
         try
         {
-            OrderRequest order = OrderRequestParser.Parse(json);
+            // Decodes strict UTF-8: bytes that are not UTF-8 are a 400, never U+FFFD in a priced order.
+            OrderRequest order = OrderRequestParser.ParseUtf8(body);
             DiscountResult result = DiscountCalculator.Calculate(order.Cart, order.Campaigns);
             return Results.Json(PricedOrder.From(result), PricedOrder.JsonOptions);
         }
@@ -80,10 +79,10 @@ public static class DiscountEndpoint
     }
 
     /// <summary>
-    /// Reads the body as UTF-8 text, or returns null once it passes <see cref="MaxOrderBytes"/>. The limit is
+    /// Reads the body's bytes, or returns null once they pass <see cref="MaxOrderBytes"/>. The limit is
     /// checked while reading, because a request may not say its size up front (chunked transfer encoding).
     /// </summary>
-    private static async Task<string?> ReadBodyAsync(HttpRequest request, CancellationToken cancellationToken)
+    private static async Task<byte[]?> ReadBodyAsync(HttpRequest request, CancellationToken cancellationToken)
     {
         if (request.ContentLength > MaxOrderBytes)
         {
@@ -103,10 +102,7 @@ public static class DiscountEndpoint
             body.Write(buffer, 0, read);
         }
 
-        // StreamReader skips a byte order mark and replaces invalid UTF-8 with U+FFFD instead of throwing.
-        body.Position = 0;
-        using var reader = new StreamReader(body, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-        return await reader.ReadToEndAsync(cancellationToken);
+        return body.ToArray();
     }
 
     private static IResult Problem(int statusCode, string title, IReadOnlyList<string> errors)
