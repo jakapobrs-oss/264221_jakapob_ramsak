@@ -1,0 +1,12 @@
+{
+  "items": [
+    { "name": "T-Shirt", "category": "Clothing", "unitPrice": 350, "quantity": 1 },
+    { "name": "Hat", "category": "Accessories", "unitPrice": 250, "quantity": 1 },
+    { "name": "Belt", "category": "Accessories", "unitPrice": 230, "quantity": 1 }
+  ],
+  "campaigns": [
+    { "type": "Percentage", "percentage": 10 },
+    { "type": "Points", "points": 200 },
+    { "type": "Seasonal", "everyAmount": 300, "discountAmount": 40 }
+  ]
+}

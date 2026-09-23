@@ -1,0 +1,9 @@
+{
+  "items": [
+    { "name": "T-Shirt", "category": "Clothing", "unitPrice": 350, "quantity": 1 },
+    { "name": "Hat", "category": "Accessories", "unitPrice": 250, "quantity": 1 }
+  ],
+  "campaigns": [
+    { "type": "FixedAmount", "amount": 50 }
+  ]
+}

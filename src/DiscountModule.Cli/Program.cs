@@ -1,1 +1,3 @@
-﻿Console.WriteLine("Hello, World!");
+using DiscountModule.Cli;
+
+return CliApp.Run(args, Console.Out, Console.Error);

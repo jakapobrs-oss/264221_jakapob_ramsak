@@ -1,0 +1,10 @@
+{
+  "items": [
+    { "name": "Socks", "category": "Clothing", "unitPrice": 100, "quantity": 1 },
+    { "name": "Cap", "category": "Accessories", "unitPrice": 100, "quantity": 1 }
+  ],
+  "campaigns": [
+    { "type": "Percentage", "percentage": 10 },
+    { "type": "CategoryPercentage", "category": "Clothing", "percentage": 10 }
+  ]
+}

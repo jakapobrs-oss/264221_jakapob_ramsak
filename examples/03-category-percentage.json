@@ -1,0 +1,11 @@
+{
+  "items": [
+    { "name": "T-Shirt", "category": "Clothing", "unitPrice": 350, "quantity": 1 },
+    { "name": "Hoodie", "category": "Clothing", "unitPrice": 700, "quantity": 1 },
+    { "name": "Watch", "category": "Electronics", "unitPrice": 850, "quantity": 1 },
+    { "name": "Bag", "category": "Accessories", "unitPrice": 640, "quantity": 1 }
+  ],
+  "campaigns": [
+    { "type": "CategoryPercentage", "category": "Clothing", "percentage": 15 }
+  ]
+}
