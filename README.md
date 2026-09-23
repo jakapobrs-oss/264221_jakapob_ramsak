@@ -1,13 +1,36 @@
 # Discount Module
 
 A small, well-tested .NET library that calculates the final price of an order by applying discount
-campaigns to the items in a shopping cart, plus a command line front end that reads an order from a
-JSON file. Built for the Playtorium developer take-home assignment.
+campaigns to the items in a shopping cart. Two thin front ends use it: a command line tool that reads
+an order from a JSON file, and a minimal HTTP API. Built for the Playtorium developer take-home assignment.
 
-- **Language / runtime:** C# 14 on .NET 10. `decimal` for money, records, no third-party
-  packages in the module or the CLI (the tests use xUnit).
-- **Tests:** `dotnet test` runs both test projects (see [Tests](#tests)).
+- **Language / runtime:** C# 14 on .NET 10. `decimal` for money, records, no third-party packages in the
+  module, the JSON library, the CLI or the API (the tests use xUnit and Microsoft.AspNetCore.Mvc.Testing).
+- **Tests:** `dotnet test` runs all four test projects (see [Tests and quality checks](#tests-and-quality-checks)).
 - **Design notes and assumptions:** [`docs/DESIGN.md`](docs/DESIGN.md), summarised below.
+
+## Review in 5 minutes
+
+1. Run it: `dotnet test`, then `dotnet run --project src/DiscountModule.Cli -- examples/06-all-categories.json`.
+2. Read these files, in this order:
+   - [`DiscountCalculator.cs`](src/DiscountModule/DiscountCalculator.cs): the whole algorithm in about 60
+     lines. Copy the input, validate it, sort by category, apply each campaign, cap and round.
+   - [`Campaign.cs`](src/DiscountModule/Campaigns/Campaign.cs) and [`PointsOnTop.cs`](src/DiscountModule/Campaigns/PointsOnTop.cs):
+     how one campaign states its own rule.
+   - [`CampaignListValidator.cs`](src/DiscountModule/Validation/CampaignListValidator.cs): one campaign per
+     category, with every problem collected.
+   - [`WorkedExampleTests.cs`](tests/DiscountModule.Tests/WorkedExampleTests.cs): the assignment's five examples as tests.
+   - [`ExtensibilityTests.cs`](tests/DiscountModule.Tests/ExtensibilityTests.cs): a new campaign added without
+     touching the calculator.
+3. The decisions that shape the code:
+
+| Decision | Why | See |
+|----------|-----|-----|
+| Two campaigns of one category are rejected, not resolved | a caller passing both has a bug, and picking one silently would hide it | A7 |
+| Points and the seasonal campaign use the running total; the category percentage uses listed prices | follows the application order and matches the examples | A1, A3 |
+| Money is `decimal`, percentages have at most 2 decimals, inputs are bounded | every calculation is exact, so each discount is rounded exactly once | A8, A11 |
+| Everything is validated before anything is calculated, and every problem is reported | invalid input never produces a price | [Validation](#validation-and-resilience) |
+| The module knows nothing about JSON or HTTP | the CLI and the API are thin adapters over the same code | [Design notes](#design-notes) |
 
 ## What it does
 
@@ -78,6 +101,31 @@ Exit codes: `0` success · `1` the order breaks a discount rule · `2` the input
 understood (missing file, malformed JSON, unknown campaign type, bad usage) · `3` unexpected error.
 Problems are printed on stderr, one per line.
 
+## HTTP API
+
+The same module behind one minimal ASP.NET Core endpoint. It takes the same JSON as the CLI and returns
+the same result as the CLI's `--json` output.
+
+```bash
+dotnet run --project src/DiscountModule.Api -- --urls http://localhost:5080
+curl -s -X POST http://localhost:5080/api/discounts -H "Content-Type: application/json" --data @examples/06-all-categories.json
+```
+
+| Status | When | Body |
+|--------|------|------|
+| 200 | the order is priced | the result: `subtotal`, `discounts`, `totalDiscount`, `pointsUsed`, `finalPrice` |
+| 400 | the order cannot be read (malformed JSON, wrong shape) | problem details, every problem in `errors` |
+| 413 | the body is larger than 1 MiB | problem details |
+| 415 | the body is not `application/json` | problem details |
+| 422 | the order breaks a discount rule | problem details, every problem in `errors` |
+
+Errors use RFC 9457 problem details (`application/problem+json`). 400 and 422 match the CLI's exit codes
+2 and 1. The size limit is checked before the body is read and again while it is read, because a request
+may not declare its size. The body must be UTF-8, as RFC 8259 requires for JSON.
+
+This is a demo front end, not a production service: it has no authentication, rate limiting or HTTPS
+configuration, which a real deployment would add in front of it.
+
 ## Input format
 
 ```json
@@ -102,10 +150,10 @@ Problems are printed on stderr, one per line.
 - `campaigns` may be empty or left out: the final price is then the subtotal.
 - The file is checked strictly, and every problem is reported with its JSON path: a missing or
   unexpected property (even one set to `null`), a property given twice, a number written as a string,
-  a fractional quantity, a number a `decimal` cannot hold exactly (such as `1e-30`), an unknown type or
-  category. `null` is never a valid value; leave an optional property out instead. When a campaign's
-  `type` is missing or unknown, its other properties are not checked, because which ones belong
-  depends on the type.
+  a fractional quantity, a number a `decimal` cannot hold exactly (such as `1e-30`), text that is not
+  valid Unicode, an unknown type or category. `null` is never a valid value; leave an optional property
+  out instead. When a campaign's `type` is missing or unknown, its other properties are not checked,
+  because which ones belong depends on the type.
 
 All files in [`examples/`](examples/) are runnable:
 
@@ -155,6 +203,17 @@ catch (DiscountModule.Validation.DiscountValidationException ex)
 }
 ```
 
+## Adding a campaign in 3 steps
+
+1. Add a record that derives from `Campaign` in `src/DiscountModule/Campaigns/`. It states its `Category`
+   and `Name`, and implements `Validate()` (reusing `AmountRules` or `PercentageRules` where they fit),
+   `ComputeDiscount()` and `Describe()`.
+2. Add its tests. `DiscountCalculator` needs no change: ordering, the one-per-category rule, capping,
+   rounding and the breakdown already apply to it. [`ExtensibilityTests.cs`](tests/DiscountModule.Tests/ExtensibilityTests.cs)
+   shows this with an example campaign that exists only in the tests.
+3. To accept it from JSON (the CLI and the API alike), add one entry to the table in
+   [`CampaignTypes.cs`](src/DiscountModule.Json/CampaignTypes.cs).
+
 ## Assumptions
 
 The assignment leaves a few points open. These are the readings used, with the reasoning in
@@ -191,11 +250,32 @@ The calculator works on its own copy of the item and campaign lists, so a caller
 another thread cannot slip an unchecked value between validation and calculation. Messages and
 descriptions format numbers the same way on every machine, whatever its culture settings.
 
-The CLI checks the file in two passes. It first reports the problems with the file's shape (exit
-code 2). Once the shape is right, the module reports every broken business rule (exit code 1). A JSON
-syntax error stops the first pass at that error, since nothing after it can be read reliably. Text
-taken from the input, such as an item name, is printed with control characters escaped (`\n`, `\t`),
-so each item and each problem stays on its own line.
+The front ends check the JSON in two passes. They first report the problems with the document's shape
+(CLI exit code 2, HTTP 400). Once the shape is right, the module reports every broken business rule
+(exit code 1, HTTP 422). A JSON syntax error stops the first pass at that error, since nothing after it
+can be read reliably. The CLI prints text taken from the input, such as an item name, with control
+characters escaped (`\n`, `\t`), so each item and each problem stays on its own line.
+
+## Tests and quality checks
+
+```bash
+dotnet test                          # all four test projects
+pwsh tools/mutation-check.ps1        # break the code on purpose and confirm the tests notice (a few minutes)
+```
+
+| Project | Tests | What they cover |
+|---------|-------|-----------------|
+| `DiscountModule.Tests` | 107 | worked examples, campaign rules and caps, application order, validation, breakdown, culture; 500 random orders from a fixed seed checked against rules that must always hold; an example campaign added without changing the calculator |
+| `DiscountModule.Json.Tests` | 52 | every shape problem the parser reports, with its exact message and JSON path |
+| `DiscountModule.Cli.Tests` | 37 | exit codes 0 to 3, text and JSON output, Thai item names, control characters, and 3,300 damaged orders generated from a fixed seed (fuzzing) that must never crash the CLI |
+| `DiscountModule.Api.Tests` | 18 | the HTTP endpoint running in memory: every example order, 400, 413, 415, 422 and problem details |
+
+- **Fuzzing found a real bug.** A JSON string holding an escaped lone surrogate, half of a UTF-16 pair,
+  crashed the reader. It is now reported as an input error with its JSON path, and a test keeps it that way.
+- **Mutation check.** [`tools/mutation-check.ps1`](tools/mutation-check.ps1) breaks 22 rules one at a time
+  (rounding mode, sort order, caps, validation, JSON checks, output escaping, API limits) and runs every test
+  after each change. All 22 are caught.
+- **CI.** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) builds and runs the tests with GitHub Actions.
 
 ## Project structure
 
@@ -203,15 +283,15 @@ so each item and each problem stays on its own line.
 src/DiscountModule/              the module (class library, no dependencies)
   Models/                        Cart, CartItem, ItemCategory
   Campaigns/                     Campaign base record, one record per campaign, CampaignCategory (+ display names), DiscountContext
-  Validation/                    CartValidator, CampaignListValidator, AmountRules, DiscountValidationException
-  DiscountCalculator.cs          entry point: validate → order → apply → breakdown
+  Validation/                    CartValidator, CampaignListValidator, AmountRules, PercentageRules, DiscountValidationException
+  DiscountCalculator.cs          entry point: copy → validate → order → apply → breakdown
   DiscountResult.cs              the result; AppliedDiscount.cs is one step of the breakdown
   Money.cs, InputLimits.cs       satang rounding and formatting; supported magnitudes
-src/DiscountModule.Cli/          command line front end (JSON in, text or JSON out)
-  Input/                         OrderRequestParser (JSON → cart + campaigns), JsonObjectReader, CampaignTypes
-  Output/                        text and JSON printers
-tests/DiscountModule.Tests/      unit tests of the module (worked examples, rules, order, validation, breakdown, culture)
-tests/DiscountModule.Cli.Tests/  tests of the CLI (parsing, exit codes, output, example files)
+src/DiscountModule.Json/         JSON shared by both front ends: OrderRequestParser, JsonObjectReader, CampaignTypes, PricedOrder
+src/DiscountModule.Cli/          command line front end: text or JSON output, control-character escaping
+src/DiscountModule.Api/          HTTP front end: POST /api/discounts
+tests/                           one test project per project in src/
+tools/mutation-check.ps1         the mutation check
 examples/                        runnable order files
 docs/DESIGN.md                   binding design notes, assumptions, test matrix
 docs/diagrams/                   the two diagrams used in this README
@@ -224,7 +304,7 @@ docs/diagrams/                   the two diagrams used in this README
 - **Each campaign owns its rule.** `Campaign` is an abstract record; every campaign type validates its
   own parameters, computes its own discount from a `DiscountContext` (cart + running total) and describes
   what it did for the breakdown. A new campaign is a new record, and `DiscountCalculator` does not change
-  (open/closed). Accepting it from JSON takes one more line in the CLI's `CampaignTypes` table.
+  (open/closed). Accepting it from JSON takes one more entry in the `CampaignTypes` table.
 - **The calculator owns the cross-cutting rules**: one campaign per category, application order,
   capping at the running total, rounding, and the breakdown. Those rules belong to the order, not to
   any single campaign.
@@ -234,28 +314,37 @@ docs/diagrams/                   the two diagrams used in this README
   stores baht and satang exactly. Rounding to 2 decimals happens once per applied discount.
 - **Records with init-only properties** for input and output. The calculator never changes what it is
   given and returns a read-only breakdown.
-- **The CLI is a thin adapter.** It turns JSON into domain types and formats the result. It contains no
-  discount logic, so the module can sit behind a web API or a UI unchanged.
+- **Thin front ends.** The CLI and the API share the JSON reader and the result shape in
+  `DiscountModule.Json`, and neither contains discount logic. The module itself knows nothing about JSON,
+  consoles or HTTP.
 
-## Tests
+## Trade-offs and next steps
 
-```bash
-dotnet test                       # both projects
-dotnet test tests/DiscountModule.Tests
-dotnet test tests/DiscountModule.Cli.Tests
-```
+Choices made on purpose:
 
-Coverage highlights: the five worked examples from the assignment and three combined orders; order
-independence; one-per-category enforcement; caps (final price ≥ 0, points cap including rounding down,
-seasonal never exceeding the total); rounding (including the 0.005 midpoint); every validation rule,
-including out-of-range magnitudes and 3-decimal amounts; culture-independent messages; every shape
-problem the CLI reports, with its exact message; each CLI exit code (0 to 3); Thai item names and control
-characters in the text output.
+- **Reject, don't resolve.** Two campaigns of one category are a usage error. A shop that wants "the best
+  coupon wins" would change one rule in `CampaignListValidator`, and no campaign would notice.
+- **Exceptions for invalid input.** `DiscountValidationException` carries every problem. A team that prefers
+  a result type could switch, and only `Calculate` would change.
+- **Validation in the calculator, not in record constructors.** Invalid campaigns can be created, so every
+  problem is reported in one go instead of the first constructor throwing.
+- **A hand-written JSON reader** instead of deserializing into classes. It is more code, but it reports every
+  problem with its path and catches duplicate keys, `null` values and lost digits that a deserializer
+  accepts silently.
+- **No framework in the module**: no dependency injection, logging or validation library. It is a pure
+  function, and the front ends can add those where they need them.
 
-`.github/workflows/ci.yml` builds and runs the same tests with GitHub Actions.
+With more time:
+
+- Validity dates and usage limits per campaign (seasonal campaigns usually run for a period).
+- Spreading each discount over the items, which refunds, partial returns and tax per line need.
+- Loading campaign definitions from configuration or a database instead of from each request.
+- Authentication, rate limiting and idempotency keys before the API handles real orders.
+- Currencies other than THB, and translated messages.
 
 ## Limitations
 
 - The text output aligns columns for Latin and Thai text; wide East Asian characters are not measured.
-- The CLI reads the whole order into memory, which suits a shopping cart but not a bulk import.
+- The CLI and the API read the whole order into memory (the API refuses bodies over 1 MiB), which suits a
+  shopping cart but not a bulk import.
 - Amounts are THB only; there is no currency handling.

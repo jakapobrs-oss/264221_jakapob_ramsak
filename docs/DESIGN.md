@@ -7,8 +7,13 @@ This document is the binding specification for the implementation. The public ty
 
 The module takes (a) the items in a shopping cart and (b) a list of discount campaigns with their
 parameters, and returns the final price plus a step-by-step breakdown. Cart management, inventory
-and checkout are out of scope. The command line program in `src/DiscountModule.Cli` is only an input
-adapter: it reads a JSON file, calls the module and prints the result.
+and checkout are out of scope. Two front ends are only adapters around the module:
+
+- `src/DiscountModule.Cli` reads an order from a JSON file or stdin, calls the module and prints the result.
+- `src/DiscountModule.Api` exposes the same thing as `POST /api/discounts`.
+
+Both use `src/DiscountModule.Json`, which reads a JSON order into domain types (section 7) and defines the
+JSON shape of a result (`PricedOrder`). The module itself knows nothing about JSON, consoles or HTTP.
 
 ## 2. Domain model
 
@@ -27,7 +32,8 @@ adapter: it reads a JSON file, calls the module and prints the result.
 | `DiscountValidationException` | Thrown by `Calculate` with **all** validation errors collected. |
 
 Adding a campaign type = adding one derived record. The calculator is closed for modification.
-Accepting the new type from JSON takes one more entry in the CLI's `CampaignTypes` table (section 7).
+Accepting the new type from JSON (CLI and API alike) takes one more entry in the `CampaignTypes` table of
+`DiscountModule.Json` (section 7).
 
 ## 3. Calculation algorithm (`DiscountCalculator.Calculate`)
 
@@ -140,7 +146,7 @@ Error messages name the offending campaign/item and the rule, e.g.
   T-Shirt and Hoodie must be Clothing for the 2,382.50 example; Hat, Belt and Bag are taken as
   Accessories and Watch as Electronics. No example's result depends on these choices.
 
-## 7. JSON input (CLI)
+## 7. JSON input (CLI and HTTP API)
 
 ```json
 {
@@ -182,6 +188,13 @@ The CLI's `OrderRequestParser` checks the document's shape and leaves business r
 - Text taken from the input (item names, unknown values, property names) is printed with control
   characters escaped (`\n`, `\t`, `\u001b`), so an item or a problem never spans two lines and cannot
   send terminal commands.
+- The HTTP API answers the same two passes with status codes: 400 for shape problems, 422 for broken
+  business rules, both as RFC 9457 problem details listing every problem in `errors`. A body that is not
+  `application/json` gets 415; a body over 1 MiB gets 413, checked from `Content-Length` before reading and
+  again while reading (a request may not declare its size). Success is 200 with the `PricedOrder` JSON, the
+  same shape the CLI prints with `--json`.
+- A string or property name holding an escaped lone surrogate (half of a UTF-16 pair) is reported as text
+  that is not valid Unicode instead of crashing the reader (found by the fuzz tests).
 - The campaign types live in one table (`CampaignTypes`): each entry names the type and reads its
   parameters, so accepting a new campaign type from JSON is one new entry.
 
@@ -212,14 +225,37 @@ Core (`tests/DiscountModule.Tests`)
   exact value ends in .004999… is rounded down (no double rounding)
 - messages and descriptions are identical under a culture that writes "12,5" (`CultureTests`)
 
+JSON (`tests/DiscountModule.Json.Tests`)
+- every campaign type and default, letter case, comments, whole numbers written as 2.0 or 1e2, and each
+  shape problem from section 7 with its exact message and JSON path
+- every shape problem in a document reported in one pass; malformed JSON with line and column (in
+  characters, also after Thai text); numbers that a decimal cannot hold exactly; escaped and raw lone
+  surrogates; empty input; missing file; a failing input stream
+
 CLI (`tests/DiscountModule.Cli.Tests`)
 - each example file produces the expected final price
-- parser: every campaign type and default, letter case, comments, whole numbers written as 2.0 or 1e2,
-  and each shape problem from section 7 with its exact message and JSON path
-- every shape problem in a document reported in one pass; malformed JSON with line and column (in characters, also after Thai text); numbers that a decimal cannot hold exactly;
-  empty input; missing file; a failing input stream
 - exit code 1 with every broken rule listed (`invalid-values.json`), exit code 2 with every shape problem
   listed (`invalid-format.json`), usage errors (no file, two files, unknown option, `--`)
 - text output: items, breakdown and total in one aligned column, also with Thai item names; control
   characters in a name or in an error are escaped; JSON output order
 - an unexpected failure (a broken output stream) exits with 3 and one line on stderr
+- fuzzing: 300 damaged copies of each example file, generated from a fixed seed (deleted and inserted
+  characters, extreme numbers, unusual strings, truncation). The CLI must answer every one with exit code
+  0, 1 or 2, write only to the matching stream, print valid JSON with `--json`, and print no control characters
+
+HTTP API (`tests/DiscountModule.Api.Tests`, the app running in memory through `WebApplicationFactory`)
+- every example order priced (200) with the expected final price, in the same shape as the CLI output
+- 422 and 400 with every problem listed, malformed JSON with its location, 415 for a non-JSON body
+- 413 for a body over the limit: over HTTP with a declared size, and by calling the endpoint directly for a
+  body without a declared size (the in-memory server always sends one); a declared oversize body is not read
+- a UTF-8 byte order mark is accepted; other methods and paths answer with problem details
+
+Core additions
+- extensibility: an example campaign that exists only in the tests is ordered, capped, validated and counted
+  by the one-per-category rule without any change to `DiscountCalculator`
+- invariants: 500 random valid orders from a fixed seed; 0 <= final <= subtotal, the steps chain exactly,
+  reversing the campaigns gives the same breakdown, every amount has 2 decimals, and the points used equal
+  min(points, floor(20% of the price at that step))
+
+Mutation check (`tools/mutation-check.ps1`): 22 deliberate faults, one at a time, each must make at least one
+test fail.
