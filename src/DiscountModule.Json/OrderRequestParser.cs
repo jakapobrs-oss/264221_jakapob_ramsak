@@ -43,6 +43,13 @@ public static class OrderRequestParser
     /// <exception cref="InputFormatException">The file cannot be read, is not UTF-8, or is not a valid order.</exception>
     public static OrderRequest ReadFile(string path)
     {
+        // Windows reports a directory as "Access to the path ... is denied", which sends the user looking for a
+        // permission problem; say what it is instead.
+        if (Directory.Exists(path))
+        {
+            throw new InputFormatException($"Cannot read '{path}': it is a directory");
+        }
+
         byte[] utf8;
         try
         {

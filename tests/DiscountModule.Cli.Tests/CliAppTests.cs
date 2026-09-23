@@ -333,6 +333,15 @@ public class CliAppTests
     }
 
     [Fact]
+    public void A_directory_given_as_the_order_file_exits_with_2_and_says_it_is_a_directory()
+    {
+        var (exitCode, _, stderr) = Run(AppContext.BaseDirectory);
+
+        Assert.Equal(CliApp.ExitInputError, exitCode);
+        Assert.Contains("it is a directory", stderr);
+    }
+
+    [Fact]
     public void No_arguments_prints_usage_and_exits_with_2()
     {
         var (exitCode, _, stderr) = Run();
