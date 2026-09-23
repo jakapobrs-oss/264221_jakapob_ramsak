@@ -12,7 +12,21 @@ public sealed record PointsOnTop(int Points) : Campaign
     public override CampaignCategory Category => CampaignCategory.OnTop;
     public override string Name => "Discount by points";
 
-    public override IEnumerable<string> Validate() => throw new NotImplementedException();
+    public override IEnumerable<string> Validate()
+    {
+        if (Points < 1)
+        {
+            yield return $"points must be at least 1 (got {Points})";
+        }
+    }
 
-    public override decimal ComputeDiscount(DiscountContext context) => throw new NotImplementedException();
+    public override decimal ComputeDiscount(DiscountContext context)
+        => Math.Min(Points, MaxPointsFor(context.RunningTotal));
+
+    public override string Describe(DiscountContext context)
+        => $"{Points} points (cap {MaxPointsFor(context.RunningTotal):0} = "
+            + $"{MaxShareOfTotal * 100:0}% of {Money.Format(context.RunningTotal)} THB)";
+
+    // A2: points are whole units, so the cap is rounded down to a whole baht (762.50 -> 152).
+    private static decimal MaxPointsFor(decimal runningTotal) => Math.Floor(runningTotal * MaxShareOfTotal);
 }
