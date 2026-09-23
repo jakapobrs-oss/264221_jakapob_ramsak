@@ -3,20 +3,23 @@ namespace DiscountModule.Json.Tests;
 /// <summary>A huge broken order is reported with a bounded number of messages (see <see cref="ProblemList"/>).</summary>
 public class ProblemLimitTests
 {
-    /// <summary>Upper bound for parsing just under 1 MiB of broken items; measured cost with the limit is well below it.</summary>
-    private const long AllocationBudgetBytes = 64L * 1024 * 1024;
+    /// <summary>
+    /// Upper bound for parsing just under 1 MiB of broken items. Measured after warm-up: about 29 KB with the
+    /// limit, 259 MB without it.
+    /// </summary>
+    private const long AllocationBudgetBytes = 8L * 1024 * 1024;
 
     /// <summary>
-    /// Upper bound for one object that repeats a property 100,000 times. Measured: about 34 KB with the limit,
-    /// 28 MB when every repeat builds a message.
+    /// Upper bound for one object that repeats a property 100,000 times. Measured after warm-up: about 34 KB
+    /// with the limit, 28 MB when every repeat builds a message.
     /// </summary>
     private const long RepeatedPropertiesBudgetBytes = 4L * 1024 * 1024;
 
     /// <summary>
-    /// Upper bound for one object with 100,000 unexpected properties. Measured: about 37 MB with the limit (the
-    /// property names themselves), 69 MB when every one builds a message.
+    /// Upper bound for one object with 100,000 unexpected properties. Measured after warm-up: about 27 MB with
+    /// the limit (the property names themselves), 60 MB when every one builds a message.
     /// </summary>
-    private const long UnexpectedPropertiesBudgetBytes = 48L * 1024 * 1024;
+    private const long UnexpectedPropertiesBudgetBytes = 40L * 1024 * 1024;
 
     /// <summary>An order whose items are empty objects: 3 problems each (name, category and unitPrice are missing).</summary>
     private static string EmptyItems(int count)
