@@ -98,6 +98,37 @@ public class CliAppTests
         => line.Count(character => CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark);
 
     [Fact]
+    public void A_very_long_item_name_is_shortened_instead_of_widening_every_line()
+    {
+        string order = $$"""{ "items": [ { "name": "{{new string('A', 10_000)}}", "category": "Clothing", "unitPrice": 350 } ] }""";
+
+        var (exitCode, stdout, _) = RunWithInput(order, "-");
+        string[] lines = Lines(stdout);
+
+        Assert.Equal(CliApp.ExitSuccess, exitCode);
+        Assert.Matches(@"^  1 x A{59}… \(Clothing\) @ 350\.00 +350\.00$", lines[1]);
+        Assert.All(lines, line => Assert.True(line.Length <= 100, $"a line has {line.Length} characters"));
+    }
+
+    [Fact]
+    public void A_long_Thai_name_is_shortened_by_columns_and_keeps_the_marks_of_its_last_letter()
+    {
+        // "เสื้อ" is 5 characters but 3 columns, so 30 of them are 90 columns: 59 are kept, then the ellipsis.
+        string name = string.Concat(Enumerable.Repeat("เสื้อ", 30));
+        string order = $$"""{ "items": [ { "name": "{{name}}", "category": "Clothing", "unitPrice": 350 } ] }""";
+
+        var (exitCode, stdout, _) = RunWithInput(order, "-");
+        string line = Lines(stdout)[1];
+        string printedName = line["  1 x ".Length..line.IndexOf(" (Clothing)", StringComparison.Ordinal)];
+
+        Assert.Equal(CliApp.ExitSuccess, exitCode);
+        Assert.EndsWith("…", printedName);
+        Assert.Equal(60, ScreenColumns(printedName));
+        Assert.StartsWith(printedName[..^1], name, StringComparison.Ordinal); // the tone mark of the last letter kept is still there
+        Assert.EndsWith("เสื้…", printedName, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Control_characters_in_an_item_name_are_escaped_so_every_line_stays_whole()
     {
         // The JSON string "Line\nbreak" holds a real newline, and ESC could recolour the terminal.

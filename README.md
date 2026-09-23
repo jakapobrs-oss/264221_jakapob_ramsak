@@ -285,9 +285,9 @@ pwsh tools/mutation-check.ps1        # break the code on purpose and confirm the
 
 - **Fuzzing found a real bug.** A JSON string holding an escaped lone surrogate, half of a UTF-16 pair,
   crashed the reader. It is now reported as an input error with its JSON path, and a test keeps it that way.
-- **Mutation check.** [`tools/mutation-check.ps1`](tools/mutation-check.ps1) breaks 36 rules one at a time
+- **Mutation check.** [`tools/mutation-check.ps1`](tools/mutation-check.ps1) breaks 37 rules one at a time
   (rounding mode, sort order, caps, validation, JSON checks, strict UTF-8, output escaping, API limits, the
-  problem limit) and runs every test after each change. All 36 are caught.
+  problem limit) and runs every test after each change. All 37 are caught.
 - **CI.** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) is a GitHub Actions workflow that builds the
   solution, checks its formatting with `dotnet format` and runs every test on each push to `main`, on pull
   requests and on demand.
@@ -366,6 +366,7 @@ With more time:
 ## Limitations
 
 - The text output aligns columns for Latin and Thai text; wide East Asian characters are not measured.
+  An item name wider than 60 columns is shortened there and ends in "…".
 - The CLI and the API read the whole order into memory (the API refuses bodies over 1 MiB), which suits a
   shopping cart but not a bulk import.
 - Amounts are THB only; there is no currency handling.

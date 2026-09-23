@@ -48,6 +48,7 @@ $mutants = @(
     @{ Name = 'JSON: half surrogate pair crashes the reader'; File = 'src/DiscountModule.Json/JsonObjectReader.cs'; Find = 'catch (InvalidOperationException)'; Replace = 'catch (FormatException)' },
     @{ Name = 'CLI: control characters printed as they are'; File = 'src/DiscountModule.Cli/Output/ConsoleText.cs'; Find = 'if (!text.Any(char.IsControl))'; Replace = 'if (text.Length >= 0)' },
     @{ Name = 'CLI: Thai marks counted as columns'; File = 'src/DiscountModule.Cli/Output/ResultPrinter.cs'; Find = 'is not (UnicodeCategory.NonSpacingMark or UnicodeCategory.EnclosingMark or UnicodeCategory.Format)'; Replace = 'is not UnicodeCategory.Control' },
+    @{ Name = 'CLI: long item names not shortened'; File = 'src/DiscountModule.Cli/Output/ResultPrinter.cs'; Find = 'string name = Shorten(ConsoleText.Escape(item.Name), MaxNameWidth);'; Replace = 'string name = item.Name;' },
     @{ Name = 'CLI: -- does not end the options'; File = 'src/DiscountModule.Cli/CliApp.cs'; Find = 'optionsEnded = true;'; Replace = 'optionsEnded = false;' },
     @{ Name = 'API: body size not checked while reading'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'if (body.Length + read > MaxOrderBytes)'; Replace = 'if (body.Length < 0)' },
     @{ Name = 'API: declared size not checked'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'if (request.ContentLength > MaxOrderBytes)'; Replace = 'if (request.ContentLength < 0)' },

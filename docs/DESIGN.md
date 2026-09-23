@@ -255,6 +255,8 @@ CLI (`tests/DiscountModule.Cli.Tests`)
   listed (`invalid-format.json`), usage errors (no file, two files, unknown option, `--`)
 - text output: items, breakdown and total in one aligned column, also with Thai item names; control
   characters in a name or in an error are escaped; JSON output order
+- a 10,000-character item name is shortened to 60 columns ending in "…", so no line grows with it; a Thai
+  name is cut by columns and keeps the marks of its last letter
 - an unexpected failure (a broken output stream) exits with 3 and one line on stderr
 - fuzzing: 300 damaged copies of each example file, generated from a fixed seed (deleted and inserted
   characters, extreme numbers, unusual strings, truncation). The CLI must answer every one with exit code
@@ -275,5 +277,5 @@ Core additions
   min(points, floor(20% of the price at that step)); a category discount equals min(listed-price
   discount, the category's share of the price before it), rounded once
 
-Mutation check (`tools/mutation-check.ps1`): 36 deliberate faults, one at a time, each must make at least one
+Mutation check (`tools/mutation-check.ps1`): 37 deliberate faults, one at a time, each must make at least one
 test fail.
