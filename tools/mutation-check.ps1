@@ -52,7 +52,8 @@ $mutants = @(
     @{ Name = 'API: a charset other than UTF-8 accepted'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'if (OtherCharset(request) is { } charset)'; Replace = 'if (OtherCharset(request) is { } charset && charset.Length < 0)' },
     @{ Name = 'problems: JSON reader never stops at the limit'; File = 'src/DiscountModule.Json/OrderRequestParser.cs'; Find = '=> errors.Count > ProblemList.MaxReportedProblems;'; Replace = '=> errors.Count < 0;' },
     @{ Name = 'problems: CLI lists every broken rule'; File = 'src/DiscountModule.Cli/CliApp.cs'; Find = 'ProblemList.ForDisplay(ex.Errors)'; Replace = 'ex.Errors' },
-    @{ Name = 'problems: API lists every broken rule'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'ProblemList.ForDisplay(ex.Errors)'; Replace = 'ex.Errors' }
+    @{ Name = 'problems: API lists every broken rule'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'ProblemList.ForDisplay(ex.Errors)'; Replace = 'ex.Errors' },
+    @{ Name = 'problems: no stop inside one object'; File = 'src/DiscountModule.Json/JsonObjectReader.cs'; Find = 'private static bool IsFull(List<string> errors) => errors.Count > ProblemList.MaxReportedProblems;'; Replace = 'private static bool IsFull(List<string> errors) => errors.Count < 0;' }
 )
 
 $survivors = 0
