@@ -95,6 +95,11 @@ public class ProblemLimitTests
     /// <summary>Parses an order that must be rejected, and counts the bytes allocated while doing so.</summary>
     private static (InputFormatException Error, long AllocatedBytes) ParseBroken(string json)
     {
+        // JsonDocument rents its buffers from a shared pool, which is empty when this test runs first or alone.
+        // Parsing once before measuring fills the pool, so the budget sees what the reader allocates and not
+        // those one-time buffers (about 9 MB for 100,000 properties, which made the test fail when run alone).
+        _ = Assert.Throws<InputFormatException>(() => OrderRequestParser.Parse(json));
+
         long before = GC.GetAllocatedBytesForCurrentThread();
         InputFormatException error = Assert.Throws<InputFormatException>(() => OrderRequestParser.Parse(json));
         return (error, GC.GetAllocatedBytesForCurrentThread() - before);

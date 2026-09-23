@@ -29,7 +29,7 @@ an order from a JSON file, and a minimal HTTP API. Built for the Playtorium deve
 | Two campaigns of one category are rejected, not resolved | a caller passing both has a bug, and picking one silently would hide it | A7 |
 | Points and the seasonal campaign use the running total; the category percentage uses listed prices | follows the application order and matches the examples | A1, A3 |
 | Money is `decimal`, percentages have at most 2 decimals, inputs are bounded | every calculation is exact, so each discount is rounded exactly once | A8, A11 |
-| Everything is validated before anything is calculated, and every problem is reported | invalid input never produces a price | [Validation](#validation-and-resilience) |
+| Everything is validated before anything is calculated, and every problem is collected | invalid input never produces a price | [Validation](#validation-and-resilience) |
 | The module knows nothing about JSON or HTTP | the CLI and the API are thin adapters over the same code | [Design notes](#design-notes) |
 
 ## What it does
@@ -152,10 +152,11 @@ configuration, which a real deployment would add in front of it.
 - Files, stdin and HTTP bodies must be UTF-8; a UTF-8 byte order mark is allowed. A UTF-16 file is refused
   with a message saying so. Windows PowerShell 5.1 writes UTF-16 with `>`, so save order files with
   `Set-Content -Encoding utf8` there, or use PowerShell 7.
-- The file is checked strictly, and every problem is reported with its JSON path: a missing or
-  unexpected property (even one set to `null`), a property given twice, a number written as a string,
-  a fractional quantity, a number a `decimal` cannot hold exactly (such as `1e-30`), bytes that are not
-  valid UTF-8, an escaped lone surrogate, an unknown type or category. `null` is never a valid value; leave an optional property
+- The file is checked strictly. Each shape problem is reported with its JSON path, up to 100 per order:
+  a missing or unexpected property (even one set to `null`), a property given twice, a number written as a
+  string, a fractional quantity, a number a `decimal` cannot hold exactly (such as `1e-30`), an escaped lone
+  surrogate, an unknown type or category. Bytes that are not valid UTF-8 are reported with their position
+  instead, because nothing after them can be read. `null` is never a valid value; leave an optional property
   out instead. When a campaign's `type` is missing or unknown, its other properties are not checked,
   because which ones belong depends on the type.
 
@@ -340,9 +341,9 @@ Choices made on purpose:
   exception today would check the result instead.
 - **Validation in the calculator, not in record constructors.** Invalid campaigns can be created, so every
   problem is reported in one go instead of the first constructor throwing.
-- **A hand-written JSON reader** instead of deserializing into classes. It is more code, but it reports every
-  problem with its path and catches duplicate keys, `null` values and lost digits that a deserializer
-  accepts silently.
+- **A hand-written JSON reader** instead of deserializing into classes. It is more code, but it reports each
+  problem with its path (up to 100) and catches duplicate keys, `null` values and lost digits that a
+  deserializer accepts silently.
 - **No framework in the module**: no dependency injection, logging or validation library. It is a pure
   function, and the front ends can add those where they need them.
 
