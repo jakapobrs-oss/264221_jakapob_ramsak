@@ -13,8 +13,9 @@ namespace DiscountModule.Json;
 internal sealed class JsonObjectReader
 {
     /// <summary>
-    /// JSON allows an escape for half of a surrogate pair on its own, but a .NET string cannot hold it:
-    /// reading such a name or value throws. Found by the fuzz tests.
+    /// JSON allows an escape for half of a surrogate pair on its own. A .NET string can hold such a half, but
+    /// System.Text.Json unescapes to UTF-8 first, which cannot encode it: JsonElement.GetString() and
+    /// JsonProperty.Name throw InvalidOperationException for it. Found by the fuzz tests.
     /// </summary>
     private const string UnpairedSurrogate = "it contains an unpaired surrogate escape";
 
