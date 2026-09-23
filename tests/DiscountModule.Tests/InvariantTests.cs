@@ -13,6 +13,12 @@ public class InvariantTests
     private const int Seed = 20260923;
     private const int OrderCount = 500;
 
+    /// <summary>
+    /// The points cap from the assignment. It is written out here instead of reading PointsOnTop.MaxShareOfTotal,
+    /// so that a change to the module's constant fails the test instead of moving the expectation with it.
+    /// </summary>
+    private const decimal PointsCapShare = 0.20m;
+
     [Fact]
     public void The_final_price_is_never_negative_and_never_above_the_subtotal()
     {
@@ -95,7 +101,7 @@ public class InvariantTests
             }
 
             int given = ((PointsOnTop)pointsStep.Campaign).Points;
-            decimal cap = Math.Floor(pointsStep.PriceBefore * PointsOnTop.MaxShareOfTotal);
+            decimal cap = Math.Floor(pointsStep.PriceBefore * PointsCapShare);
             Assert.True(result.PointsUsed == Math.Min(given, cap),
                 $"{order}: used {result.PointsUsed} points; given {given}, cap {cap} at {pointsStep.PriceBefore}");
         }

@@ -231,27 +231,44 @@ public class OrderRequestParserTests
     }
 
     // JSON escapes are assembled at run time ("\\u" + ...) so that no tool or editor turns them into raw characters.
-    private static readonly string HalfSurrogateEscape = "\\u" + "D800";
+    private static string JsonEscape(string utf16CodeUnitInHex) => "\\u" + utf16CodeUnitInHex;
 
-    [Fact]
-    public void A_string_holding_half_a_surrogate_pair_is_reported_instead_of_crashing()
+    [Theory]
+    [InlineData("D800")] // a high half, which must be followed by a low half
+    [InlineData("DC00")] // a low half, which must follow a high half
+    public void A_string_holding_half_a_surrogate_pair_is_reported_instead_of_crashing(string half)
     {
         // Found by the fuzz tests: reading this string used to throw InvalidOperationException.
-        string json = $$"""{ "items": [ { "name": "{{HalfSurrogateEscape}}", "category": "Clothing", "unitPrice": 1 } ] }""";
+        string escape = JsonEscape(half);
+        string json = $$"""{ "items": [ { "name": "{{escape}}", "category": "Clothing", "unitPrice": 1 } ] }""";
 
         Assert.Equal(
-            $"$.items[0].name: the string \"{HalfSurrogateEscape}\" is not valid text (it contains an unpaired surrogate escape)",
+            $"$.items[0].name: the string \"{escape}\" is not valid text (it contains an unpaired surrogate escape)",
             Assert.Single(ParseFails(json).Errors));
     }
 
-    [Fact]
-    public void A_property_name_holding_half_a_surrogate_pair_is_reported_instead_of_crashing()
+    [Theory]
+    [InlineData("D800")]
+    [InlineData("DC00")]
+    public void A_property_name_holding_half_a_surrogate_pair_is_reported_instead_of_crashing(string half)
     {
-        string json = $$"""{ "items": [ { "{{HalfSurrogateEscape}}": 1, "name": "Hat", "category": "Clothing", "unitPrice": 1 } ] }""";
+        string json = $$"""{ "items": [ { "{{JsonEscape(half)}}": 1, "name": "Hat", "category": "Clothing", "unitPrice": 1 } ] }""";
 
         Assert.Equal(
             "$.items[0]: a property name is not valid text (it contains an unpaired surrogate escape)",
             Assert.Single(ParseFails(json).Errors));
+    }
+
+    [Fact]
+    public void A_whole_surrogate_pair_escape_is_read_as_the_character_it_encodes()
+    {
+        // Refusing half a pair must not refuse a whole one: this pair is the emoji U+1F600.
+        string pair = JsonEscape("D83D") + JsonEscape("DE00");
+        string json = $$"""{ "items": [ { "name": "{{pair}}", "category": "Clothing", "unitPrice": 1 } ] }""";
+
+        OrderRequest request = OrderRequestParser.Parse(json);
+
+        Assert.Equal(new CartItem(char.ConvertFromUtf32(0x1F600), ItemCategory.Clothing, 1m), Assert.Single(request.Cart.Items));
     }
 
     [Fact]

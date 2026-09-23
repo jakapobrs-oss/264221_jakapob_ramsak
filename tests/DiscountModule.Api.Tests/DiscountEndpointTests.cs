@@ -2,7 +2,9 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using DiscountModule.Api;
+using DiscountModule.Cli;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -13,6 +15,12 @@ namespace DiscountModule.Api.Tests;
 public class DiscountEndpointTests(WebApplicationFactory<Program> factory) : IClassFixture<WebApplicationFactory<Program>>
 {
     private const string Endpoint = "/api/discounts";
+
+    /// <summary>DiscountEndpoint reads a body 16 KiB at a time, so it may read one buffer past the limit, no more.</summary>
+    private const int EndpointReadBufferBytes = 16_384;
+
+    /// <summary>A Thai letter: 1 character, 3 bytes in UTF-8.</summary>
+    private const char ThaiLetter = 'ก';
 
     private readonly HttpClient client = factory.CreateClient();
 
@@ -49,17 +57,38 @@ public class DiscountEndpointTests(WebApplicationFactory<Program> factory) : ICl
         Assert.Equal(decimal.Parse(expectedFinalPrice), result.GetProperty("finalPrice").GetDecimal());
     }
 
-    [Fact]
-    public async Task The_result_has_the_same_shape_as_the_cli_json_output()
+    [Theory]
+    [InlineData("01-fixed-amount.json")]
+    [InlineData("02-percentage.json")]
+    [InlineData("03-category-percentage.json")]
+    [InlineData("04-points.json")]
+    [InlineData("05-seasonal.json")]
+    [InlineData("06-all-categories.json")]
+    [InlineData("07-points-capped-after-coupon.json")]
+    [InlineData("08-coupon-then-category.json")]
+    public async Task The_result_is_the_json_the_cli_prints_and_has_every_documented_field(string file)
     {
-        HttpResponseMessage response = await PostAsync(Example("07-points-capped-after-coupon.json"));
+        string order = Example(file);
 
-        JsonElement result = await ReadJsonAsync(response);
-        Assert.Equal(830.00m, result.GetProperty("subtotal").GetDecimal());
-        Assert.Equal(149, result.GetProperty("pointsUsed").GetInt32());
-        Assert.Equal(272.00m, result.GetProperty("totalDiscount").GetDecimal());
-        string[] categories = [.. result.GetProperty("discounts").EnumerateArray().Select(step => step.GetProperty("category").GetString()!)];
-        Assert.Equal(["Coupon", "OnTop", "Seasonal"], categories);
+        HttpResponseMessage response = await PostAsync(order);
+        string apiJson = await response.Content.ReadAsStringAsync();
+        string cliJson = RunCliWithJsonOutput(order);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(
+            JsonNode.DeepEquals(JsonNode.Parse(apiJson), JsonNode.Parse(cliJson)),
+            $"The API and the CLI disagree.{Environment.NewLine}API: {apiJson}{Environment.NewLine}CLI: {cliJson}");
+
+        // Both front ends share one result type, so a field missing from both would still compare equal above.
+        using JsonDocument document = JsonDocument.Parse(apiJson);
+        JsonElement result = document.RootElement;
+        AssertFieldNames(["subtotal", "discounts", "totalDiscount", "pointsUsed", "finalPrice"], result);
+        JsonElement[] steps = [.. result.GetProperty("discounts").EnumerateArray()];
+        Assert.NotEmpty(steps);
+        foreach (JsonElement step in steps)
+        {
+            AssertFieldNames(["category", "campaign", "description", "priceBefore", "discountAmount", "priceAfter"], step);
+        }
     }
 
     [Fact]
@@ -71,8 +100,16 @@ public class DiscountEndpointTests(WebApplicationFactory<Program> factory) : ICl
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         JsonElement problem = await ReadJsonAsync(response);
         Assert.Equal("The order breaks a discount rule", problem.GetProperty("title").GetString());
-        Assert.Equal(6, Errors(problem).Length);
-        Assert.Contains("Only one Coupon campaign can be applied per order (got: Fixed amount, Percentage discount)", Errors(problem));
+        Assert.Equal(
+            [
+                "Item #1 'T-Shirt': unit price must not be negative (got -350)",
+                "Item #2 'Hat': unit price must have at most 2 decimal places (got 250.005)",
+                "Item #2 'Hat': quantity must be at least 1 (got 0)",
+                "Campaign #2 'Percentage discount': percentage must be greater than 0 and at most 100 (got 150)",
+                "Campaign #3 'Special campaign': discount amount must not exceed every amount (got 400 > 300)",
+                "Only one Coupon campaign can be applied per order (got: Fixed amount, Percentage discount)",
+            ],
+            Errors(problem));
     }
 
     [Fact]
@@ -81,9 +118,18 @@ public class DiscountEndpointTests(WebApplicationFactory<Program> factory) : ICl
         HttpResponseMessage response = await PostAsync(Example("invalid-format.json"));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         JsonElement problem = await ReadJsonAsync(response);
         Assert.Equal("The order could not be read", problem.GetProperty("title").GetString());
-        Assert.Equal(5, Errors(problem).Length);
+        Assert.Equal(
+            [
+                "$.items[0].category: unknown value \"Shirts\" (expected one of: Clothing, Accessories, Electronics)",
+                "$.items[1]: \"unitPrice\" is required",
+                "$.items[1]: unexpected property \"price\" (expected: name, category, unitPrice, quantity)",
+                "$.campaigns[0].percentage: expected a number, got the string \"10\"",
+                "$.campaigns[1].type: unknown value \"BuyOneGetOne\" (expected one of: FixedAmount, Percentage, CategoryPercentage, Points, Seasonal)",
+            ],
+            Errors(problem));
     }
 
     [Fact]
@@ -113,19 +159,42 @@ public class DiscountEndpointTests(WebApplicationFactory<Program> factory) : ICl
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData(DiscountEndpoint.MaxOrderBytes - 1)]
+    [InlineData(DiscountEndpoint.MaxOrderBytes)]
+    public async Task A_body_up_to_the_size_limit_is_priced(int bytes)
+    {
+        HttpResponseMessage response = await PostAsync(ValidOrderOfUtf8Bytes(bytes));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(100.00m, (await ReadJsonAsync(response)).GetProperty("finalPrice").GetDecimal());
+    }
+
     [Fact]
-    public async Task A_body_without_a_declared_size_is_still_limited()
+    public async Task A_body_one_byte_over_the_size_limit_is_413()
+    {
+        HttpResponseMessage response = await PostAsync(ValidOrderOfUtf8Bytes(DiscountEndpoint.MaxOrderBytes + 1));
+
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(DiscountEndpoint.MaxOrderBytes + 1)]
+    [InlineData(10 * 1024 * 1024)]
+    public async Task A_body_without_a_declared_size_is_read_at_most_one_buffer_past_the_limit(int bodyBytes)
     {
         // No Content-Length header (as with chunked transfer encoding): the limit must hold while reading.
         // The in-memory test server always sends a length, so this calls the endpoint directly.
+        var body = new CountingStream(bodyBytes);
         var context = new DefaultHttpContext();
         context.Request.ContentType = "application/json";
-        context.Request.Body = new MemoryStream(new byte[DiscountEndpoint.MaxOrderBytes + 1]);
+        context.Request.Body = body;
 
         IResult result = await DiscountEndpoint.PriceAsync(context.Request, CancellationToken.None);
 
         Assert.Null(context.Request.ContentLength);
         Assert.Equal(StatusCodes.Status413PayloadTooLarge, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
+        Assert.InRange(body.BytesRead, DiscountEndpoint.MaxOrderBytes + 1, DiscountEndpoint.MaxOrderBytes + EndpointReadBufferBytes);
     }
 
     [Fact]
@@ -161,8 +230,102 @@ public class DiscountEndpointTests(WebApplicationFactory<Program> factory) : ICl
         HttpResponseMessage get = await client.GetAsync(Endpoint);
         HttpResponseMessage unknown = await client.PostAsync("/api/unknown", new StringContent("{}", Encoding.UTF8, "application/json"));
 
-        Assert.Equal(HttpStatusCode.MethodNotAllowed, get.StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
-        Assert.Equal("application/problem+json", unknown.Content.Headers.ContentType?.MediaType);
+        await AssertProblemDetailsAsync(get, HttpStatusCode.MethodNotAllowed, "Method Not Allowed");
+        await AssertProblemDetailsAsync(unknown, HttpStatusCode.NotFound, "Not Found");
+    }
+
+    private static string RunCliWithJsonOutput(string order)
+    {
+        var stdout = new StringWriter();
+        var stderr = new StringWriter();
+
+        int exitCode = CliApp.Run(["-", "--json"], stdout, stderr, new StringReader(order));
+
+        Assert.True(exitCode == CliApp.ExitSuccess, $"The CLI exited with {exitCode}: {stderr}");
+        return stdout.ToString();
+    }
+
+    /// <summary>Checks the property names of a JSON object, in any order.</summary>
+    private static void AssertFieldNames(string[] expected, JsonElement jsonObject)
+        => Assert.Equal(
+            expected.Order(StringComparer.Ordinal),
+            jsonObject.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
+
+    private static async Task AssertProblemDetailsAsync(HttpResponseMessage response, HttpStatusCode status, string title)
+    {
+        Assert.Equal(status, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        JsonElement problem = await ReadJsonAsync(response);
+        Assert.Equal((int)status, problem.GetProperty("status").GetInt32());
+        Assert.Equal(title, problem.GetProperty("title").GetString());
+    }
+
+    /// <summary>
+    /// A valid order (one item at 100.00 THB) that is exactly <paramref name="bytes"/> bytes long in UTF-8. The name
+    /// is padded with Thai letters, 3 bytes each, so the body has about a third as many characters as bytes.
+    /// </summary>
+    private static string ValidOrderOfUtf8Bytes(int bytes)
+    {
+        const string Start = "{ \"items\": [ { \"name\": \"";
+        const string End = "\", \"category\": \"Clothing\", \"unitPrice\": 100, \"quantity\": 1 } ], \"campaigns\": [] }";
+
+        int nameBytes = bytes - Encoding.UTF8.GetByteCount(Start + End);
+        string name = new string(ThaiLetter, nameBytes / 3) + new string('x', nameBytes % 3);
+        string order = Start + name + End;
+
+        Assert.Equal(bytes, Encoding.UTF8.GetByteCount(order));
+        return order;
+    }
+
+    /// <summary>
+    /// A request body of <c>length</c> bytes of Thai text, made while it is read, that counts the bytes read from it.
+    /// A limit counted in characters instead of bytes would read about three times the limit before it stopped.
+    /// </summary>
+    private sealed class CountingStream(int length) : Stream
+    {
+        private static readonly byte[] ThaiLetterUtf8 = Encoding.UTF8.GetBytes(ThaiLetter.ToString());
+
+        public int BytesRead { get; private set; }
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+
+        public override int Read(Span<byte> buffer)
+        {
+            int count = Math.Min(buffer.Length, length - BytesRead);
+            for (int i = 0; i < count; i++)
+            {
+                buffer[i] = ThaiLetterUtf8[(BytesRead + i) % ThaiLetterUtf8.Length];
+            }
+
+            BytesRead += count;
+            return count;
+        }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+            => ValueTask.FromResult(Read(buffer.Span));
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }

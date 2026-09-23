@@ -19,6 +19,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DiscountModule.Api\DiscountModule.Api.csproj" />
+    <!-- Only so that a test can compare the API's result with the CLI's JSON output for the same order. -->
+    <ProjectReference Include="..\..\src\DiscountModule.Cli\DiscountModule.Cli.csproj" />
   </ItemGroup>
 
   <ItemGroup>
