@@ -61,7 +61,7 @@ print as 550.00 and 60.00 however they were computed.
 |----------|-----------------------------------------|
 | Fixed amount (`Amount`) | `Amount` |
 | Percentage (`Percentage`) | `running * Percentage / 100` |
-| Percentage by item category (`ItemCategory`, `Percentage`) | `sum(LineTotal of items in ItemCategory) * Percentage / 100` — computed on the **original** item prices (see A3) |
+| Percentage by item category (`ItemCategory`, `Percentage`) | `min(category * Percentage / 100, share)` where `category = sum(LineTotal of items in ItemCategory)` on the **original** item prices and `share = running * category / subtotal`, rounded once to satang and worked out exactly with 128-bit integers (see A3) |
 | Points (`Points`) | `min(Points, floor(running * 0.20))` — whole THB only (see A2) |
 | Seasonal (`EveryAmount`, `DiscountAmount`) | `floor(running / EveryAmount) * DiscountAmount` |
 
@@ -112,13 +112,20 @@ Error messages name the offending campaign/item and the rule, e.g.
 - **A1 — "Total price" means the running total.** Every discount is capped at the price left by the
   campaigns before it (Coupon → On Top → Seasonal). The 20% points cap and the seasonal "every X THB"
   are also calculated from that running total, not the original subtotal. The category percentage is
-  the one exception, see A3.
+  taken from listed prices instead, capped at the category's share of the running total, see A3.
 - **A2 — Points are whole units.** 1 point = 1 THB, so the cap `20% × running total` is rounded
   **down** to a whole baht and the points actually used are always an integer (`DiscountResult.PointsUsed`).
   Example: running total 762.50 → cap 152; a customer spending 200 points uses 152.
-- **A3 — Category percentage uses original item prices.** "Discount the entire amount of a specific
-  category of items" is read as a percentage of those items' listed prices, regardless of a coupon
-  applied earlier. The result is still capped at the running total.
+- **A3 — Category percentage uses original item prices, capped at the category's share of what is
+  left.** "Discount the entire amount of a specific category of items" is read as a percentage of those
+  items' listed prices. A coupon applied earlier has already lowered every item's price, so the discount
+  is capped at the category's share of the running total, `running × category / subtotal`: the running
+  total spread over the items in proportion to their listed prices. Without the cap, a coupon and this
+  campaign together could take more than the category's items are worth, and the rest would come off
+  other categories: Clothing 1,000 + Electronics 1,000 with 50% off the cart and 80% off Clothing would
+  end at 200.00, the phone paying 200 instead of its 500; with the cap it ends at 500.00
+  (`examples/09`). Without a coupon the cap never applies. The share is worked out exactly in satang
+  with 128-bit integers and rounded once, half away from zero (`Money.Share`).
 - **A4 — "Amount" for the category campaign is a percentage.** The parameter table says "Amount" but
   the example says "15% Off on Clothing"; the example wins.
 - **A5 — Seasonal uses floor division** (830 THB with "40 at every 300" → 2 × 40 = 80, matching the
@@ -131,6 +138,8 @@ Error messages name the offending campaign/item and the rule, e.g.
   amounts, seasonal thresholds) must already be whole satang, so the subtotal is exact. Percentages
   may have at most 2 decimals too (12.5 or 33.33, not 33.333): a price with 2 decimals times a rate
   with 4 decimals has at most 6, so every intermediate product is exact and no value is rounded twice.
+  The category cap (A3) is the one division; `Money.Share` computes it in satang with 128-bit integers,
+  because in `decimal` the product could overflow and a quotient would be rounded to 28 digits first.
   Each applied discount is rounded half away from zero to 2 decimals. Prices such as 2,382.50 stay exact.
 - **A9 — Items carry a quantity.** "1 T-Shirt: 350 THB" is quantity 1 × unit price 350.
 - **A10 — A free item (unit price 0) is allowed; an empty cart is not.** Applying discounts to an
@@ -217,6 +226,10 @@ Core (`tests/DiscountModule.Tests`)
   149 points used (proves A1 and A2)
 - coupon before category percentage: Clothing 100 + Accessories 100, 10% coupon, 10% off Clothing
   → 170.00 (proves A3)
+- category cap: Clothing 1,000 + Electronics 100, 1,000 coupon, 100% off Clothing → 9.09; Clothing
+  1,000 + Electronics 1,000, 50% coupon, 80% off Clothing → 500.00, and the breakdown names the cap;
+  free items only → 0; at the subtotal limit the share (…994999…) is rounded down once, where `decimal`
+  would overflow or round twice
 - empty campaign list → final = subtotal, empty breakdown
 - every validation rule in section 5, plus "all errors collected at once"; out-of-range and
   three-decimal amounts are rejected with a message, never an exception of another type
@@ -259,7 +272,8 @@ Core additions
   by the one-per-category rule without any change to `DiscountCalculator`
 - invariants: 500 random valid orders from a fixed seed; 0 <= final <= subtotal, the steps chain exactly,
   reversing the campaigns gives the same breakdown, every amount has 2 decimals, and the points used equal
-  min(points, floor(20% of the price at that step))
+  min(points, floor(20% of the price at that step)); a category discount equals min(listed-price
+  discount, the category's share of the price before it), rounded once
 
 Mutation check (`tools/mutation-check.ps1`): 36 deliberate faults, one at a time, each must make at least one
 test fail.

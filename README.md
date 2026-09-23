@@ -27,7 +27,7 @@ an order from a JSON file, and a minimal HTTP API. Built for the Playtorium deve
 | Decision | Why | See |
 |----------|-----|-----|
 | Two campaigns of one category are rejected, not resolved | a caller passing both has a bug, and picking one silently would hide it | A7 |
-| Points and the seasonal campaign use the running total; the category percentage uses listed prices | follows the application order and matches the examples | A1, A3 |
+| Points and the seasonal campaign use the running total; the category percentage uses listed prices, capped at the category's share of the running total | follows the application order, and a category discount never lowers the price of another category | A1, A3 |
 | Money is `decimal`, percentages have at most 2 decimals, inputs are bounded | every calculation is exact, so each discount is rounded exactly once | A8, A11 |
 | Everything is validated before anything is calculated, and every problem is collected | invalid input never produces a price | [Validation](#validation-and-resilience) |
 | The module knows nothing about JSON or HTTP | the CLI and the API are thin adapters over the same code | [Design notes](#design-notes) |
@@ -38,7 +38,7 @@ an order from a JSON file, and a minimal HTTP API. Built for the Playtorium deve
 |----------|----------|------|------------|
 | Fixed amount | Coupon | Subtract a fixed amount from the total | `amount` |
 | Percentage discount | Coupon | Subtract a percentage of the total | `percentage` |
-| Percentage discount by item category | On Top | Subtract a percentage of the price of every item in one category | `category`, `percentage` |
+| Percentage discount by item category | On Top | Subtract a percentage of the listed price of every item in one category, at most that category's share of the price left | `category`, `percentage` |
 | Discount by points | On Top | 1 point = 1 THB, capped at 20% of the total (fixed rule) | `points` |
 | Special campaign | Seasonal | For every X THB of the total, subtract Y THB | `everyAmount`, `discountAmount` |
 
@@ -48,8 +48,9 @@ Rules from the assignment:
    discount together with points, is rejected as a usage error.
 2. Campaigns are applied in the order **Coupon → On Top → Seasonal**, whatever order they are given in.
    Each discount is capped at the price left by the campaigns before it. Points and the seasonal
-   campaign are also calculated from that remaining price; the category discount is a percentage of
-   the listed prices of that category (assumption A3).
+   campaign are also calculated from that remaining price. The category discount is a percentage of
+   the listed prices of that category, capped at the category's share of the remaining price, so it
+   never lowers the price of items in other categories (assumption A3).
 
 The module returns the final price together with a step-by-step breakdown (price before, discount,
 price after for every campaign) and the number of points actually used, so a caller can deduct them.
@@ -168,6 +169,7 @@ All files in [`examples/`](examples/) are runnable:
 | `06-all-categories.json` | one campaign of each category, listed in reverse order on purpose (the result is the same) |
 | `07-points-capped-after-coupon.json` | the 20% points cap taken from the price after the coupon (558.00, 149 points used) |
 | `08-coupon-then-category.json` | the category discount taken from listed prices after a coupon (170.00) |
+| `09-category-capped-after-coupon.json` | the category discount capped at the category's share of the price left after a coupon (500.00) |
 | `invalid-two-coupons.json` | the one-campaign-per-category rule (exit code 1) |
 | `invalid-values.json` | six broken business rules reported together (exit code 1) |
 | `invalid-format.json` | five problems with the file's shape reported together (exit code 2) |
@@ -228,12 +230,12 @@ The assignment leaves a few points open. These are the readings used, with the r
 |---|------------|
 | A1 | **"Total price" means the running total.** The 20% points cap and the seasonal "every X THB" use the price left by the campaigns before them, not the original subtotal. |
 | A2 | **Points are whole units.** 1 point = 1 THB, so the cap is rounded *down* to a whole baht and `PointsUsed` is always an integer (running total 762.50 → cap 152). |
-| A3 | **The category percentage uses the listed item prices**, even after a coupon; the result is still capped at the running total. |
+| A3 | **The category percentage uses the listed item prices, capped at the category's share of the running total.** That share is the running total spread over the items in proportion to their listed prices. Without the cap, a coupon plus a category discount could take more than the category's items are worth and lower the price of other categories (50% off the cart, then 80% off Clothing). Without a coupon the cap never applies. |
 | A4 | **The category campaign's "Amount" is a percentage.** The parameter table says "Amount", the example says "15% Off on Clothing"; the example wins. |
 | A5 | **Seasonal uses floor division** (830 THB at "40 for every 300" → 2 × 40), matching the example. `discountAmount` may not exceed `everyAmount`. |
 | A6 | **The final price never goes below zero.** A 1,000 THB coupon on a 600 THB cart gives 0. |
 | A7 | **One campaign per category is enforced, not resolved.** Two campaigns of the same category are rejected with a clear message rather than silently choosing one. |
-| A8 | **Money is `decimal` at satang precision.** Prices and amounts may have at most 2 decimals, and so may percentages (12.5 or 33.33, not 33.333). Together with the limits in A11 this keeps every calculation exact, so each discount is rounded only once: half away from zero, to 2 decimals. |
+| A8 | **Money is `decimal` at satang precision.** Prices and amounts may have at most 2 decimals, and so may percentages (12.5 or 33.33, not 33.333). Together with the limits in A11 this keeps every calculation exact, so each discount is rounded only once: half away from zero, to 2 decimals. The category cap (A3) needs a division; it is worked out exactly in satang with 128-bit integers and rounded once as well. |
 | A9 | **Items carry a quantity** (`unitPrice × quantity`). |
 | A10 | **A free item (price 0) is allowed; an empty cart is not.** |
 | A11 | **Supported magnitudes:** prices and amounts up to 1,000,000,000 THB, quantities up to 1,000,000 per line, and an order subtotal up to 1,000,000,000,000,000 THB (one line at the maximum price and quantity). Larger values are rejected; within these bounds no calculation can overflow or lose a digit. |
@@ -336,6 +338,10 @@ Choices made on purpose:
 - **Reject, don't resolve.** Two campaigns of one category are a usage error. A shop that wants "the best
   coupon wins" would drop that check and add a selection step to the calculator that prices each
   candidate and keeps the cheapest result. The campaign records themselves would not change.
+- **Listed prices with a cap, not full pro-rata.** The category percentage is taken from listed prices and
+  only capped at the category's share of what is left (A3). The other reading takes the percentage of that
+  share itself: `examples/08` would then give 171.00 instead of 170.00. Switching would only change
+  `CategoryPercentageOnTop`.
 - **Exceptions for invalid input.** `DiscountValidationException` carries every problem. A team that prefers
   a result type could switch: `Calculate` would return it, and the two front ends that catch the
   exception today would check the result instead.
