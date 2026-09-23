@@ -1,0 +1,11 @@
+{
+  "items": [
+    { "name": "T-Shirt", "category": "Clothing", "unitPrice": -350 },
+    { "name": "Hat", "category": "Accessories", "unitPrice": 250.005, "quantity": 0 }
+  ],
+  "campaigns": [
+    { "type": "FixedAmount", "amount": 50 },
+    { "type": "Percentage", "percentage": 150 },
+    { "type": "Seasonal", "everyAmount": 300, "discountAmount": 400 }
+  ]
+}

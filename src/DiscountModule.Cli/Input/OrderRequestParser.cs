@@ -1,0 +1,158 @@
+using System.Text.Json;
+using DiscountModule.Campaigns;
+using DiscountModule.Models;
+
+namespace DiscountModule.Cli.Input;
+
+/// <summary>An order read from JSON, ready to be handed to <see cref="DiscountCalculator"/>.</summary>
+public sealed record OrderRequest(Cart Cart, IReadOnlyList<Campaign> Campaigns);
+
+/// <summary>
+/// Turns the JSON input into a cart and a campaign list.
+/// It checks the shape of the document: JSON types, required and unexpected properties, known campaign types
+/// and categories. It reports every shape problem at once; a JSON syntax error stops it at the first one.
+/// Business rules such as a negative price or two coupons are left to <see cref="DiscountCalculator"/>,
+/// which reports them with its own messages.
+/// </summary>
+public static class OrderRequestParser
+{
+    private static readonly JsonDocumentOptions DocumentOptions = new()
+    {
+        CommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
+    };
+
+    /// <exception cref="InputFormatException">The file cannot be read, or its content is not a valid order.</exception>
+    public static OrderRequest ReadFile(string path)
+    {
+        string json;
+        try
+        {
+            json = File.ReadAllText(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            throw new InputFormatException($"Cannot read '{path}': {ex.Message}");
+        }
+
+        return Parse(json);
+    }
+
+    /// <exception cref="InputFormatException">The reader fails, or its content is not a valid order.</exception>
+    public static OrderRequest Read(TextReader reader)
+    {
+        ArgumentNullException.ThrowIfNull(reader);
+
+        string json;
+        try
+        {
+            json = reader.ReadToEnd();
+        }
+        catch (IOException ex)
+        {
+            throw new InputFormatException($"Cannot read standard input: {ex.Message}");
+        }
+
+        return Parse(json);
+    }
+
+    /// <exception cref="InputFormatException">The text is not a valid order.</exception>
+    public static OrderRequest Parse(string json)
+    {
+        ArgumentNullException.ThrowIfNull(json);
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            throw new InputFormatException("Input is empty; expected a JSON object with \"items\" and \"campaigns\"");
+        }
+
+        using JsonDocument document = ParseDocument(json);
+        List<string> errors = [];
+        OrderRequest? request = ReadOrder(document.RootElement, errors);
+
+        if (request is null || errors.Count > 0)
+        {
+            throw new InputFormatException(errors);
+        }
+
+        return request;
+    }
+
+    private static JsonDocument ParseDocument(string json)
+    {
+        try
+        {
+            return JsonDocument.Parse(json, DocumentOptions);
+        }
+        catch (JsonException ex)
+        {
+            // The message ends with "LineNumber: 0 | BytePositionInLine: 2."; report the position 1-based instead.
+            string reason = ex.Message.Split(" LineNumber:", 2)[0].TrimEnd('.', ' ');
+            string location = ex.LineNumber is { } line && ex.BytePositionInLine is { } position
+                ? $" at line {line + 1}, position {position + 1}"
+                : "";
+            throw new InputFormatException($"Malformed JSON{location}: {reason}");
+        }
+    }
+
+    private static OrderRequest? ReadOrder(JsonElement root, List<string> errors)
+    {
+        JsonObjectReader? order = JsonObjectReader.Open(root, "$", errors);
+        if (order is null)
+        {
+            return null;
+        }
+
+        List<CartItem> items = order.Array("items") is { } itemArray ? ReadItems(itemArray, errors) : [];
+
+        // Leaving "campaigns" out means no campaigns: the final price is then the subtotal.
+        List<Campaign> campaigns = order.Array("campaigns", required: false) is { } campaignArray
+            ? ReadCampaigns(campaignArray, errors)
+            : [];
+
+        order.RejectUnexpectedProperties();
+        return new OrderRequest(new Cart(items), campaigns);
+    }
+
+    private static List<CartItem> ReadItems(JsonElement array, List<string> errors)
+    {
+        List<CartItem> items = [];
+        int index = 0;
+        foreach (JsonElement element in array.EnumerateArray())
+        {
+            JsonObjectReader? item = JsonObjectReader.Open(element, $"$.items[{index++}]", errors);
+            if (item is null)
+            {
+                continue;
+            }
+
+            string? name = item.String("name");
+            ItemCategory? category = item.OneOf<ItemCategory>("category");
+            decimal? unitPrice = item.Number("unitPrice");
+            int? quantity = item.WholeNumber("quantity", required: false);
+            item.RejectUnexpectedProperties();
+
+            if (!item.HasErrors && name is not null && category is { } itemCategory && unitPrice is { } price)
+            {
+                items.Add(new CartItem(name, itemCategory, price, quantity ?? 1));
+            }
+        }
+
+        return items;
+    }
+
+    private static List<Campaign> ReadCampaigns(JsonElement array, List<string> errors)
+    {
+        List<Campaign> campaigns = [];
+        int index = 0;
+        foreach (JsonElement element in array.EnumerateArray())
+        {
+            JsonObjectReader? json = JsonObjectReader.Open(element, $"$.campaigns[{index++}]", errors);
+            if (json is not null && CampaignTypes.Read(json) is { } campaign)
+            {
+                campaigns.Add(campaign);
+            }
+        }
+
+        return campaigns;
+    }
+}

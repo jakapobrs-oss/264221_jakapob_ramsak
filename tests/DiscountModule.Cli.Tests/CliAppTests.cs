@@ -1,19 +1,27 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace DiscountModule.Cli.Tests;
 
-/// <summary>End-to-end tests: the CLI is driven exactly like a user would, through the example files.</summary>
+/// <summary>End-to-end tests: the CLI is driven the way a user would drive it, mostly through the example files.</summary>
 public class CliAppTests
 {
     private static string Example(string name) => Path.Combine(AppContext.BaseDirectory, "examples", name);
 
     private static (int ExitCode, string Stdout, string Stderr) Run(params string[] args)
+        => RunWithInput(stdin: null, args);
+
+    private static (int ExitCode, string Stdout, string Stderr) RunWithInput(string? stdin, params string[] args)
     {
         var stdout = new StringWriter();
         var stderr = new StringWriter();
-        var exitCode = CliApp.Run(args, stdout, stderr);
+        int exitCode = CliApp.Run(args, stdout, stderr, stdin is null ? null : new StringReader(stdin));
         return (exitCode, stdout.ToString(), stderr.ToString());
     }
+
+    private static string[] Lines(string output) => output.TrimEnd().Split(Environment.NewLine);
+
+    // ---- Successful runs ----
 
     [Theory]
     [InlineData("01-fixed-amount.json", "550.00")]
@@ -30,33 +38,62 @@ public class CliAppTests
 
         Assert.Equal("", stderr);
         Assert.Equal(CliApp.ExitSuccess, exitCode);
-        using var document = JsonDocument.Parse(stdout);
+        using JsonDocument document = JsonDocument.Parse(stdout);
         Assert.Equal(decimal.Parse(expectedFinalPrice), document.RootElement.GetProperty("finalPrice").GetDecimal());
     }
 
     [Fact]
-    public void Text_output_shows_items_breakdown_and_final_price()
+    public void Text_output_lists_the_items_the_discounts_and_the_final_price_in_one_aligned_column()
     {
         var (exitCode, stdout, _) = Run(Example("04-points.json"));
+        string[] lines = Lines(stdout);
 
         Assert.Equal(CliApp.ExitSuccess, exitCode);
-        Assert.Contains("Subtotal", stdout);
-        Assert.Contains("830.00", stdout);
-        Assert.Contains("[On Top]", stdout);
-        Assert.Contains("Final price", stdout);
-        Assert.Contains("762.00", stdout);
-        Assert.Contains("Points used: 68", stdout);
+        Assert.Equal("Items", lines[0]);
+        Assert.Matches(@"^  1 x T-Shirt \(Clothing\) @ 350\.00 +350\.00$", lines[1]);
+        Assert.Matches(@"^  1 x Hat \(Accessories\) @ 250\.00 +250\.00$", lines[2]);
+        Assert.Matches(@"^  1 x Belt \(Accessories\) @ 230\.00 +230\.00$", lines[3]);
+        Assert.Matches(@"^Subtotal +830\.00$", lines[4]);
+        Assert.Matches(@"^  \[On Top\] 68 points \(cap 166 = 20% of 830\.00 THB\) +-68\.00$", lines[7]);
+        Assert.Matches(@"^Total discount +-68\.00$", lines[9]);
+        Assert.Matches(@"^Final price +762\.00$", lines[10]);
+        Assert.Equal("Points used: 68", lines[11]);
+
+        // Every amount ends in the same column.
+        string[] amountLines = [.. lines.Where(line => Regex.IsMatch(line, @"\d\.\d\d$"))];
+        Assert.Equal(7, amountLines.Length);
+        Assert.Single(amountLines.Select(line => line.Length).Distinct());
     }
 
     [Fact]
-    public void Json_output_lists_discounts_in_application_order()
+    public void Thai_item_names_keep_the_amount_column_aligned()
+    {
+        const string order = """
+            { "items": [ { "name": "เสื้อยืด", "category": "Clothing", "unitPrice": 350 },
+                         { "name": "Hat", "category": "Accessories", "unitPrice": 250 } ] }
+            """;
+
+        var (exitCode, stdout, _) = RunWithInput(order, "-");
+        string[] lines = Lines(stdout);
+
+        Assert.Equal(CliApp.ExitSuccess, exitCode);
+        Assert.StartsWith("  1 x เสื้อยืด (Clothing)", lines[1]);
+        // "เสื้อยืด" is 8 UTF-16 characters but 5 columns wide: its 3 vowel and tone marks sit above the
+        // consonants. The Thai line therefore has 3 more characters than the Hat line of the same width.
+        Assert.Equal(lines[2].Length + 3, lines[1].Length);
+    }
+
+    [Fact]
+    public void Json_output_lists_the_discounts_in_application_order()
     {
         var (_, stdout, _) = Run(Example("06-all-categories.json"), "--json");
 
-        using var document = JsonDocument.Parse(stdout);
-        var categories = document.RootElement.GetProperty("discounts").EnumerateArray()
-            .Select(discount => discount.GetProperty("category").GetString()!)
-            .ToArray();
+        using JsonDocument document = JsonDocument.Parse(stdout);
+        string[] categories =
+        [
+            .. document.RootElement.GetProperty("discounts").EnumerateArray()
+                .Select(discount => discount.GetProperty("category").GetString()!),
+        ];
         Assert.Equal(["Coupon", "OnTop", "Seasonal"], categories);
         Assert.Equal(100, document.RootElement.GetProperty("pointsUsed").GetInt32());
     }
@@ -64,39 +101,103 @@ public class CliAppTests
     [Fact]
     public void Reads_the_order_from_standard_input_when_given_a_dash()
     {
-        var stdin = new StringReader(File.ReadAllText(Example("01-fixed-amount.json")));
-        var stdout = new StringWriter();
-
-        var exitCode = CliApp.Run(["-", "--json"], stdout, new StringWriter(), stdin);
+        var (exitCode, stdout, _) = RunWithInput(File.ReadAllText(Example("01-fixed-amount.json")), "-", "--json");
 
         Assert.Equal(CliApp.ExitSuccess, exitCode);
-        Assert.Contains("\"finalPrice\": 550.00", stdout.ToString());
+        Assert.Contains("\"finalPrice\": 550.00", stdout);
     }
 
     [Fact]
-    public void Order_that_breaks_a_discount_rule_exits_with_1_and_explains()
+    public void Help_prints_usage_and_exits_with_0()
+    {
+        var (exitCode, stdout, _) = Run("--help");
+
+        Assert.Equal(CliApp.ExitSuccess, exitCode);
+        Assert.Contains("Usage:", stdout);
+    }
+
+    // ---- Exit code 1: the order breaks a discount rule ----
+
+    [Fact]
+    public void Two_coupons_exit_with_1_and_explain_the_rule()
     {
         var (exitCode, stdout, stderr) = Run(Example("invalid-two-coupons.json"));
 
         Assert.Equal(CliApp.ExitValidationError, exitCode);
         Assert.Equal("", stdout);
-        Assert.StartsWith("Invalid order", stderr);
-        Assert.Contains("Coupon", stderr);
+        Assert.Equal(
+            [
+                "Invalid order (1):",
+                "  - Only one Coupon campaign can be applied per order (got: Fixed amount, Percentage discount)",
+            ],
+            Lines(stderr));
     }
 
     [Fact]
-    public void Unknown_campaign_type_exits_with_2_and_lists_supported_types()
+    public void Every_broken_rule_in_the_order_is_reported_at_once()
     {
-        var (exitCode, _, stderr) = Run(Example("invalid-unknown-type.json"));
+        var (exitCode, _, stderr) = Run(Example("invalid-values.json"));
+
+        Assert.Equal(CliApp.ExitValidationError, exitCode);
+        Assert.Equal(
+            [
+                "Invalid order (6):",
+                "  - Item #1 'T-Shirt': unit price must not be negative (got -350)",
+                "  - Item #2 'Hat': unit price must have at most 2 decimal places (got 250.005)",
+                "  - Item #2 'Hat': quantity must be at least 1 (got 0)",
+                "  - Campaign #2 'Percentage discount': percentage must be greater than 0 and at most 100 (got 150)",
+                "  - Campaign #3 'Special campaign': discount amount must not exceed every amount (got 400 > 300)",
+                "  - Only one Coupon campaign can be applied per order (got: Fixed amount, Percentage discount)",
+            ],
+            Lines(stderr));
+    }
+
+    [Fact]
+    public void Absurdly_large_amounts_are_rejected_not_crashed_on()
+    {
+        // decimal.MaxValue x 2 would overflow; the module refuses the value before doing any arithmetic.
+        const string order = """
+            { "items": [ { "name": "Gold", "category": "Accessories", "unitPrice": 79228162514264337593543950335, "quantity": 2 } ] }
+            """;
+
+        var (exitCode, _, stderr) = RunWithInput(order, "-");
+
+        Assert.Equal(CliApp.ExitValidationError, exitCode);
+        Assert.Contains("unit price is too large", stderr);
+    }
+
+    // ---- Exit code 2: the input cannot be read or understood ----
+
+    [Fact]
+    public void Every_shape_problem_in_the_file_is_reported_at_once_with_exit_code_2()
+    {
+        var (exitCode, stdout, stderr) = Run(Example("invalid-format.json"));
 
         Assert.Equal(CliApp.ExitInputError, exitCode);
-        Assert.StartsWith("Input error", stderr);
-        Assert.Contains("BuyOneGetOne", stderr);
-        Assert.Contains("Seasonal", stderr);
+        Assert.Equal("", stdout);
+        Assert.Equal(
+            [
+                "Input error (5):",
+                "  - $.items[0].category: unknown value \"Shirts\" (expected one of: Clothing, Accessories, Electronics)",
+                "  - $.items[1]: \"unitPrice\" is required",
+                "  - $.items[1]: unexpected property \"price\" (expected: name, category, unitPrice, quantity)",
+                "  - $.campaigns[0].percentage: expected a number, got the string \"10\"",
+                "  - $.campaigns[1].type: unknown value \"BuyOneGetOne\" (expected one of: FixedAmount, Percentage, CategoryPercentage, Points, Seasonal)",
+            ],
+            Lines(stderr));
     }
 
     [Fact]
-    public void Missing_file_exits_with_2()
+    public void Malformed_json_exits_with_2_and_says_where()
+    {
+        var (exitCode, _, stderr) = RunWithInput("{ not json", "-");
+
+        Assert.Equal(CliApp.ExitInputError, exitCode);
+        Assert.StartsWith("Input error (1):" + Environment.NewLine + "  - Malformed JSON at line 1, position 3: ", stderr);
+    }
+
+    [Fact]
+    public void A_missing_file_exits_with_2()
     {
         var (exitCode, _, stderr) = Run(Example("does-not-exist.json"));
 
@@ -105,55 +206,38 @@ public class CliAppTests
     }
 
     [Fact]
-    public void Malformed_json_exits_with_2()
-    {
-        var stdin = new StringReader("{ not json");
-
-        var exitCode = CliApp.Run(["-"], new StringWriter(), new StringWriter(), stdin);
-
-        Assert.Equal(CliApp.ExitInputError, exitCode);
-    }
-
-    [Fact]
     public void No_arguments_prints_usage_and_exits_with_2()
     {
         var (exitCode, _, stderr) = Run();
 
         Assert.Equal(CliApp.ExitInputError, exitCode);
-        Assert.Contains("Usage:", stderr);
+        Assert.StartsWith("Usage:", stderr.TrimStart());
     }
 
     [Fact]
-    public void Unknown_option_exits_with_2()
+    public void An_unknown_option_exits_with_2()
     {
         var (exitCode, _, stderr) = Run(Example("01-fixed-amount.json"), "--verbose");
 
         Assert.Equal(CliApp.ExitInputError, exitCode);
-        Assert.Contains("Unknown option '--verbose'", stderr);
+        Assert.StartsWith("Unknown option '--verbose'", stderr);
     }
 
     [Fact]
-    public void Help_flag_prints_usage_and_exits_with_0()
+    public void Two_order_files_exit_with_2()
     {
-        var (exitCode, stdout, _) = Run("--help");
+        var (exitCode, _, stderr) = Run(Example("01-fixed-amount.json"), Example("02-percentage.json"));
 
-        Assert.Equal(CliApp.ExitSuccess, exitCode);
-        Assert.Contains("Usage:", stdout);
+        Assert.Equal(CliApp.ExitInputError, exitCode);
+        Assert.StartsWith("Only one order file can be given", stderr);
     }
 
     [Fact]
-    public void Absurdly_large_amounts_are_rejected_not_crashed_on()
+    public void After_a_double_dash_an_argument_starting_with_a_dash_is_a_file_name()
     {
-        // decimal.MaxValue x 2 would overflow; the module must refuse the value before doing any arithmetic.
-        var stdin = new StringReader("""
-            { "items": [ { "name": "Gold", "category": "Accessories", "unitPrice": 79228162514264337593543950335, "quantity": 2 } ],
-              "campaigns": [] }
-            """);
-        var stderr = new StringWriter();
+        var (exitCode, _, stderr) = Run("--", "-order.json");
 
-        var exitCode = CliApp.Run(["-"], new StringWriter(), stderr, stdin);
-
-        Assert.Equal(CliApp.ExitValidationError, exitCode);
-        Assert.StartsWith("Invalid order", stderr.ToString());
+        Assert.Equal(CliApp.ExitInputError, exitCode);
+        Assert.Contains("Cannot read '-order.json'", stderr);
     }
 }

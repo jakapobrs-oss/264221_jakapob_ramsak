@@ -6,79 +6,90 @@ namespace DiscountModule.Cli;
 
 /// <summary>
 /// Command line front end of the discount module: read a JSON order, apply the campaigns, print the result.
-/// Kept free of <see cref="Console"/> so that tests can drive it with in-memory writers.
+/// Kept free of <see cref="Console"/> so that tests can drive it with in-memory readers and writers.
 /// </summary>
 public static class CliApp
 {
     /// <summary>The order was priced successfully.</summary>
     public const int ExitSuccess = 0;
 
-    /// <summary>The input was well-formed but violates a discount rule (e.g. two coupons, negative price).</summary>
+    /// <summary>The input was well-formed but breaks a discount rule (e.g. two coupons, a negative price).</summary>
     public const int ExitValidationError = 1;
 
     /// <summary>The input could not be read or understood (missing file, malformed JSON, unknown campaign type, bad usage).</summary>
     public const int ExitInputError = 2;
 
+    /// <summary>Something failed that the program does not expect; see Program.cs.</summary>
+    public const int ExitUnexpectedError = 3;
+
     private const string StdinMarker = "-";
+    private const string EndOfOptions = "--";
 
     private const string Usage = """
-        Usage: discount <order.json> [--json]
-               discount - [--json]          read the order from standard input
+        Usage: discount [--json] <order.json>
+               discount [--json] -          read the order from standard input
 
         Options:
           --json        print the result as JSON instead of a text breakdown
           -h, --help    show this help
+          --            treat every later argument as a file name, even if it starts with '-'
 
-        Exit codes: 0 = success, 1 = the order violates a discount rule, 2 = the input could not be read.
-        Input format: docs/DESIGN.md section 7, or any file in examples/.
+        Exit codes: 0 = success, 1 = the order breaks a discount rule, 2 = the input could not be read,
+                    3 = unexpected error.
+        Input format: see README.md or any file in examples/.
         """;
 
     public static int Run(string[] args, TextWriter stdout, TextWriter stderr, TextReader? stdin = null)
     {
+        ArgumentNullException.ThrowIfNull(args);
+        ArgumentNullException.ThrowIfNull(stdout);
+        ArgumentNullException.ThrowIfNull(stderr);
+
         string? source = null;
-        var asJson = false;
+        bool asJson = false;
+        bool optionsEnded = false;
 
-        foreach (var arg in args)
+        foreach (string arg in args)
         {
-            switch (arg)
+            bool isOption = !optionsEnded && arg.StartsWith('-') && arg != StdinMarker;
+            if (isOption)
             {
-                case "--json":
-                    asJson = true;
-                    break;
-                case "-h" or "--help":
-                    stdout.WriteLine(Usage);
-                    return ExitSuccess;
-                case var option when option.StartsWith('-') && option != StdinMarker:
-                    stderr.WriteLine($"Unknown option '{option}'");
-                    stderr.WriteLine(Usage);
-                    return ExitInputError;
-                default:
-                    if (source is not null)
-                    {
-                        stderr.WriteLine("Only one order file can be given");
-                        stderr.WriteLine(Usage);
-                        return ExitInputError;
-                    }
-
-                    source = arg;
-                    break;
+                switch (arg)
+                {
+                    case EndOfOptions:
+                        optionsEnded = true;
+                        continue;
+                    case "--json":
+                        asJson = true;
+                        continue;
+                    case "-h" or "--help":
+                        stdout.WriteLine(Usage);
+                        return ExitSuccess;
+                    default:
+                        return UsageError(stderr, $"Unknown option '{arg}'");
+                }
             }
+
+            if (source is not null)
+            {
+                return UsageError(stderr, "Only one order file can be given");
+            }
+
+            source = arg;
         }
 
         if (source is null)
         {
-            stderr.WriteLine(Usage);
-            return ExitInputError;
+            return UsageError(stderr, problem: null);
         }
 
         try
         {
-            var dto = source == StdinMarker
-                ? OrderRequestReader.Parse((stdin ?? Console.In).ReadToEnd())
-                : OrderRequestReader.ReadFile(source);
+            OrderRequest request = source == StdinMarker
+                ? OrderRequestParser.Read(stdin ?? Console.In)
+                : OrderRequestParser.ReadFile(source);
 
-            var request = OrderRequestMapper.Map(dto);
-            var result = DiscountCalculator.Calculate(request.Cart, request.Campaigns);
+            DiscountResult result = DiscountCalculator.Calculate(request.Cart, request.Campaigns);
 
             if (asJson)
             {
@@ -103,10 +114,21 @@ public static class CliApp
         }
     }
 
+    private static int UsageError(TextWriter stderr, string? problem)
+    {
+        if (problem is not null)
+        {
+            stderr.WriteLine(problem);
+        }
+
+        stderr.WriteLine(Usage);
+        return ExitInputError;
+    }
+
     private static void Report(TextWriter stderr, string title, IReadOnlyList<string> errors)
     {
         stderr.WriteLine($"{title} ({errors.Count}):");
-        foreach (var error in errors)
+        foreach (string error in errors)
         {
             stderr.WriteLine($"  - {error}");
         }

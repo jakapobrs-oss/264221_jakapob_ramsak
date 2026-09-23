@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DiscountModule.Campaigns;
@@ -22,9 +23,13 @@ public static class ResultPrinter
 
     public static void WriteText(Cart cart, DiscountResult result, TextWriter writer)
     {
-        // Rows are collected first so the amount column can be aligned to the longest label.
+        ArgumentNullException.ThrowIfNull(cart);
+        ArgumentNullException.ThrowIfNull(result);
+        ArgumentNullException.ThrowIfNull(writer);
+
+        // Rows are collected first so that the amount column can be aligned to the longest label.
         List<(string Label, string? Amount)> rows = [("Items", null)];
-        foreach (var item in cart.Items)
+        foreach (CartItem item in cart.Items)
         {
             rows.Add(($"  {item.Quantity} x {item.Name} ({item.Category}) @ {Money(item.UnitPrice)}", Money(item.LineTotal)));
         }
@@ -37,28 +42,31 @@ public static class ResultPrinter
             rows.Add(("  (none)", null));
         }
 
-        foreach (var applied in result.AppliedDiscounts)
+        foreach (AppliedDiscount applied in result.AppliedDiscounts)
         {
-            rows.Add(($"  [{applied.Campaign.Category.ToDisplayName()}] {applied.Description}", "-" + Money(applied.DiscountAmount)));
+            rows.Add(($"  [{applied.Campaign.Category.ToDisplayName()}] {applied.Description}", Subtracted(applied.DiscountAmount)));
         }
 
         rows.Add(("", null));
-        rows.Add(("Total discount", Money(result.TotalDiscount)));
+        rows.Add(("Total discount", Subtracted(result.TotalDiscount)));
         rows.Add(("Final price", Money(result.FinalPrice)));
         if (result.PointsUsed > 0)
         {
             rows.Add(($"Points used: {result.PointsUsed}", null));
         }
 
-        var labelWidth = Math.Max(MinLabelWidth, rows.Where(row => row.Amount is not null).Max(row => row.Label.Length) + ColumnGap);
-        foreach (var (label, amount) in rows)
+        int labelWidth = Math.Max(MinLabelWidth, rows.Where(row => row.Amount is not null).Max(row => DisplayWidth(row.Label)) + ColumnGap);
+        foreach ((string label, string? amount) in rows)
         {
-            writer.WriteLine(amount is null ? label : label.PadRight(labelWidth) + amount.PadLeft(AmountWidth));
+            writer.WriteLine(amount is null ? label : PadToWidth(label, labelWidth) + amount.PadLeft(AmountWidth));
         }
     }
 
     public static void WriteJson(DiscountResult result, TextWriter writer)
     {
+        ArgumentNullException.ThrowIfNull(result);
+        ArgumentNullException.ThrowIfNull(writer);
+
         var payload = new
         {
             result.Subtotal,
@@ -80,4 +88,18 @@ public static class ResultPrinter
     }
 
     private static string Money(decimal value) => value.ToString("N2", CultureInfo.InvariantCulture);
+
+    /// <summary>An amount taken off the price, e.g. "-83.00"; nothing taken off prints as "0.00", not "-0.00".</summary>
+    private static string Subtracted(decimal amount) => amount == 0 ? Money(amount) : "-" + Money(amount);
+
+    /// <summary>
+    /// Number of terminal columns the text takes. Combining marks, such as Thai vowel and tone marks written
+    /// above or below a consonant, take no column of their own. Wide East Asian characters are not handled.
+    /// </summary>
+    private static int DisplayWidth(string text)
+        => text.EnumerateRunes().Count(rune => Rune.GetUnicodeCategory(rune)
+            is not (UnicodeCategory.NonSpacingMark or UnicodeCategory.EnclosingMark or UnicodeCategory.Format));
+
+    private static string PadToWidth(string text, int width)
+        => text + new string(' ', Math.Max(0, width - DisplayWidth(text)));
 }

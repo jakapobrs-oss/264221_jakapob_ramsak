@@ -1,0 +1,10 @@
+{
+  "items": [
+    { "name": "T-Shirt", "category": "Shirts", "unitPrice": 350 },
+    { "name": "Hat", "category": "Accessories", "price": 250 }
+  ],
+  "campaigns": [
+    { "type": "Percentage", "percentage": "10" },
+    { "type": "BuyOneGetOne" }
+  ]
+}
