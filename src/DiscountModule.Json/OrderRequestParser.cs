@@ -4,6 +4,8 @@ using System.Text.Json;
 using DiscountModule.Campaigns;
 using DiscountModule.Models;
 
+using static System.FormattableString;
+
 namespace DiscountModule.Json;
 
 /// <summary>An order read from JSON, ready to be handed to <see cref="DiscountCalculator"/>.</summary>
@@ -25,23 +27,43 @@ public static class OrderRequestParser
         AllowTrailingCommas = true,
     };
 
-    /// <exception cref="InputFormatException">The file cannot be read, or its content is not a valid order.</exception>
+    /// <summary>
+    /// UTF-8 that throws on bytes it cannot decode. The default decoder would silently put U+FFFD in their
+    /// place, and the order would be priced from text its sender never wrote.
+    /// </summary>
+    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+
+    /// <summary>What a UTF-8 byte order mark (EF BB BF) decodes to. It is not part of the JSON.</summary>
+    private const char ByteOrderMark = (char)0xFEFF;
+
+    private static ReadOnlySpan<byte> Utf16LittleEndianMark => [0xFF, 0xFE];
+
+    private static ReadOnlySpan<byte> Utf16BigEndianMark => [0xFE, 0xFF];
+
+    /// <exception cref="InputFormatException">The file cannot be read, is not UTF-8, or is not a valid order.</exception>
     public static OrderRequest ReadFile(string path)
     {
-        string json;
+        byte[] utf8;
         try
         {
-            json = File.ReadAllText(path);
+            utf8 = File.ReadAllBytes(path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
             throw new InputFormatException($"Cannot read '{path}': {ex.Message}");
         }
 
-        return Parse(json);
+        return ParseUtf8(utf8);
     }
 
-    /// <exception cref="InputFormatException">The reader fails, or its content is not a valid order.</exception>
+    /// <summary>
+    /// A reader for an order that arrives as a stream, such as standard input. It decodes strict UTF-8, so
+    /// <see cref="Read"/> reports bytes that are not UTF-8 instead of reading U+FFFD in their place.
+    /// </summary>
+    public static TextReader CreateUtf8Reader(Stream stream)
+        => new StreamReader(stream, StrictUtf8, detectEncodingFromByteOrderMarks: false);
+
+    /// <exception cref="InputFormatException">The reader fails, its bytes are not UTF-8, or its content is not a valid order.</exception>
     public static OrderRequest Read(TextReader reader)
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -55,6 +77,38 @@ public static class OrderRequestParser
         {
             throw new InputFormatException($"Cannot read standard input: {ex.Message}");
         }
+        catch (DecoderFallbackException ex)
+        {
+            // Thrown by a strict reader such as CreateUtf8Reader's. Its Index counts from the start of the
+            // reader's buffer, not of the input, so no offset is given.
+            throw new InputFormatException($"Input is not valid UTF-8 text ({UndecodedBytes(ex)})");
+        }
+
+        return Parse(json);
+    }
+
+    /// <summary>
+    /// Reads an order from bytes that must be UTF-8: a file, standard input or an HTTP body. A UTF-8 byte order
+    /// mark is skipped; any other byte order mark, and any byte that is not UTF-8, is reported with its offset.
+    /// </summary>
+    /// <exception cref="InputFormatException">The bytes are not UTF-8, or the text is not a valid order.</exception>
+    public static OrderRequest ParseUtf8(ReadOnlySpan<byte> utf8)
+    {
+        // "> file" and Out-File in Windows PowerShell 5.1 write UTF-16 with this mark: name the encoding, not a byte.
+        if (utf8.StartsWith(Utf16LittleEndianMark) || utf8.StartsWith(Utf16BigEndianMark))
+        {
+            throw new InputFormatException("Input is UTF-16 text (it starts with a UTF-16 byte order mark); it must be UTF-8");
+        }
+
+        string json;
+        try
+        {
+            json = StrictUtf8.GetString(utf8);
+        }
+        catch (DecoderFallbackException ex)
+        {
+            throw new InputFormatException(Invariant($"Input is not valid UTF-8 text ({UndecodedBytes(ex)} at offset {ex.Index})"));
+        }
 
         return Parse(json);
     }
@@ -63,6 +117,13 @@ public static class OrderRequestParser
     public static OrderRequest Parse(string json)
     {
         ArgumentNullException.ThrowIfNull(json);
+
+        // Text decoded from UTF-8 with a byte order mark starts with U+FEFF; the JSON starts after it.
+        if (json.StartsWith(ByteOrderMark))
+        {
+            json = json[1..];
+        }
+
         if (string.IsNullOrWhiteSpace(json))
         {
             throw new InputFormatException("Input is empty; expected a JSON object with \"items\" and \"campaigns\"");
@@ -87,6 +148,14 @@ public static class OrderRequestParser
     /// broken order costs a few messages instead of millions.
     /// </summary>
     private static bool TooManyProblems(List<string> errors) => errors.Count > ProblemList.MaxReportedProblems;
+
+    /// <summary>The bytes a strict decoder stopped at, e.g. "byte 0xFF" or "bytes 0xE0 0xB8" (a letter cut short).</summary>
+    private static string UndecodedBytes(DecoderFallbackException ex)
+    {
+        byte[] bytes = ex.BytesUnknown ?? [];
+        string listed = string.Join(" ", bytes.Select(value => Invariant($"0x{value:X2}")));
+        return bytes.Length == 1 ? $"byte {listed}" : $"bytes {listed}";
+    }
 
     private static JsonDocument ParseDocument(string json)
     {
