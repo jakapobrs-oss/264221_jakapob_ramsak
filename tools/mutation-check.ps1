@@ -38,7 +38,7 @@ $mutants = @(
     @{ Name = 'negative price accepted'; File = 'src/DiscountModule/Validation/AmountRules.cs'; Find = 'if (value < 0)'; Replace = 'if (value < -1)' },
     @{ Name = 'input not copied before validation'; File = 'src/DiscountModule/DiscountCalculator.cs'; Find = 'cart with { Items = cart.Items.ToArray() }'; Replace = 'cart' },
     @{ Name = 'subtotal limit not enforced'; File = 'src/DiscountModule/Validation/CartValidator.cs'; Find = 'if (everyLineIsValid && cart.Subtotal > InputLimits.MaxSubtotal)'; Replace = 'if (everyLineIsValid && cart.Subtotal < 0)' },
-    @{ Name = 'JSON: duplicate property not reported'; File = 'src/DiscountModule.Json/JsonObjectReader.cs'; Find = 'errors.Add($"{path}: property \"{propertyName}\" is given more than once");'; Replace = '' },
+    @{ Name = 'JSON: duplicate property not reported'; File = 'src/DiscountModule.Json/JsonObjectReader.cs'; Find = 'Record(errors, $"{path}: property \"{propertyName}\" is given more than once");'; Replace = '' },
     @{ Name = 'JSON: unexpected property not reported'; File = 'src/DiscountModule.Json/JsonObjectReader.cs'; Find = 'if (!expectedNames.Contains(name, StringComparer.OrdinalIgnoreCase))'; Replace = 'if (name.Length < 0)' },
     @{ Name = 'JSON: lost digits not reported'; File = 'src/DiscountModule.Json/JsonObjectReader.cs'; Find = 'if (writtenValue != CanonicalNumber(number.ToString(CultureInfo.InvariantCulture)))'; Replace = 'if (writtenValue is null && number == -1)' },
     @{ Name = 'JSON: names match case-sensitively'; File = 'src/DiscountModule.Json/JsonObjectReader.cs'; Find = 'string.Equals(candidate, text, StringComparison.OrdinalIgnoreCase)'; Replace = 'string.Equals(candidate, text, StringComparison.Ordinal)' },
