@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -20,7 +20,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\DiscountModule\DiscountModule.csproj" />
-    <ProjectReference Include="..\..\src\DiscountModule.Cli\DiscountModule.Cli.csproj" />
   </ItemGroup>
 
 </Project>
