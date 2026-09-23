@@ -1,6 +1,7 @@
 using DiscountModule.Json;
 using DiscountModule.Cli.Output;
 using DiscountModule.Validation;
+using static System.FormattableString;
 
 namespace DiscountModule.Cli;
 
@@ -130,12 +131,17 @@ public static class CliApp
         }
         catch (InputFormatException ex)
         {
-            Report(stderr, "Input error", ex.Errors);
+            // The parser stops after MaxReportedProblems and adds a closing line, so past that the total is unknown.
+            string count = ex.Errors.Count > ProblemList.MaxReportedProblems
+                ? Invariant($"more than {ProblemList.MaxReportedProblems}")
+                : Invariant($"{ex.Errors.Count}");
+            Report(stderr, $"Input error ({count})", ex.Errors);
             return ExitInputError;
         }
         catch (DiscountValidationException ex)
         {
-            Report(stderr, "Invalid order", ex.Errors);
+            // The heading counts every broken rule; the list shows at most MaxReportedProblems of them.
+            Report(stderr, Invariant($"Invalid order ({ex.Errors.Count})"), ProblemList.ForDisplay(ex.Errors));
             return ExitValidationError;
         }
     }
@@ -151,9 +157,9 @@ public static class CliApp
         return ExitInputError;
     }
 
-    private static void Report(TextWriter stderr, string title, IReadOnlyList<string> errors)
+    private static void Report(TextWriter stderr, string heading, IReadOnlyList<string> errors)
     {
-        stderr.WriteLine($"{title} ({errors.Count}):");
+        stderr.WriteLine($"{heading}:");
         foreach (string error in errors)
         {
             // Messages can quote input text (an item name, an unknown value); escaping keeps one problem per line.

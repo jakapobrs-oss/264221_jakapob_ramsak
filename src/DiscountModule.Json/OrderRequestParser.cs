@@ -11,7 +11,8 @@ public sealed record OrderRequest(Cart Cart, IReadOnlyList<Campaign> Campaigns);
 /// <summary>
 /// Turns a JSON order into a cart and a campaign list, for both the CLI and the HTTP API.
 /// It checks the shape of the document: JSON types, required and unexpected properties, known campaign types
-/// and categories. It reports every shape problem at once; a JSON syntax error stops it at the first one.
+/// and categories. It reports every shape problem at once, up to <see cref="ProblemList.MaxReportedProblems"/>;
+/// past that it stops reading and says so. A JSON syntax error stops it at the first one.
 /// Business rules such as a negative price or two coupons are left to <see cref="DiscountCalculator"/>,
 /// which reports them with its own messages.
 /// </summary>
@@ -72,11 +73,19 @@ public static class OrderRequestParser
 
         if (request is null || errors.Count > 0)
         {
-            throw new InputFormatException(errors);
+            throw new InputFormatException(TooManyProblems(errors)
+                ? [.. errors.Take(ProblemList.MaxReportedProblems), ProblemList.StoppedMessage]
+                : errors);
         }
 
         return request;
     }
+
+    /// <summary>
+    /// True once the order has more problems than are reported. The readers below then stop, so a huge
+    /// broken order costs a few messages instead of millions.
+    /// </summary>
+    private static bool TooManyProblems(List<string> errors) => errors.Count > ProblemList.MaxReportedProblems;
 
     private static JsonDocument ParseDocument(string json)
     {
@@ -139,6 +148,11 @@ public static class OrderRequestParser
         int index = 0;
         foreach (JsonElement element in array.EnumerateArray())
         {
+            if (TooManyProblems(errors))
+            {
+                break;
+            }
+
             JsonObjectReader? item = JsonObjectReader.Open(element, $"$.items[{index++}]", errors);
             if (item is null)
             {
@@ -166,6 +180,11 @@ public static class OrderRequestParser
         int index = 0;
         foreach (JsonElement element in array.EnumerateArray())
         {
+            if (TooManyProblems(errors))
+            {
+                break;
+            }
+
             JsonObjectReader? json = JsonObjectReader.Open(element, $"$.campaigns[{index++}]", errors);
             if (json is not null && CampaignTypes.Read(json) is { } campaign)
             {
