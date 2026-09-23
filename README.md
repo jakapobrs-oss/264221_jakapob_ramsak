@@ -256,6 +256,10 @@ The front ends check the JSON in two passes. They first report the problems with
 can be read reliably. The CLI prints text taken from the input, such as an item name, with control
 characters escaped (`\n`, `\t`), so each item and each problem stays on its own line.
 
+At most 100 problems are listed per order, followed by a line saying how many were left out. The JSON
+reader stops after 100 problems. Without these limits, a 1 MiB body of empty items would produce about
+a million messages, tens of megabytes for a single request.
+
 ## Tests and quality checks
 
 ```bash
