@@ -95,7 +95,9 @@ public static class OrderRequestParser
         }
         catch (ArgumentException)
         {
-            // Only reachable through Parse(string): text read from a file or stdin never holds half a surrogate pair.
+            // Keep JsonDocument.Parse the only call in this try: here ArgumentException can only mean text that
+            // cannot be encoded as UTF-8. Only reachable through Parse(string): text read from a file, stdin or an
+            // HTTP body never holds half a surrogate pair.
             throw new InputFormatException("Input is not valid text: it contains half of a surrogate pair");
         }
     }

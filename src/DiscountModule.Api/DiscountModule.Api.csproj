@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>DiscountModule.Api</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DiscountModule\DiscountModule.csproj" />
+    <ProjectReference Include="..\DiscountModule.Json\DiscountModule.Json.csproj" />
+  </ItemGroup>
+
+</Project>

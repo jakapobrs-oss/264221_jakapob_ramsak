@@ -1,0 +1,86 @@
+using System.Text;
+using static System.FormattableString;
+using DiscountModule.Json;
+using DiscountModule.Validation;
+
+namespace DiscountModule.Api;
+
+/// <summary>
+/// POST /api/discounts: prices one order. The status codes mirror the CLI's exit codes:
+/// 200 = priced, 422 = the order breaks a discount rule (exit code 1), 400 = the order cannot be read (exit code 2).
+/// </summary>
+public static class DiscountEndpoint
+{
+    /// <summary>
+    /// An order is a few kilobytes. Anything above this is refused before it is parsed, so one request
+    /// cannot make the server read an unbounded body into memory.
+    /// </summary>
+    public const int MaxOrderBytes = 1_048_576;
+
+    public static async Task<IResult> PriceAsync(HttpRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!request.HasJsonContentType())
+        {
+            return Problem(StatusCodes.Status415UnsupportedMediaType, "Send the order as application/json", []);
+        }
+
+        string? json = await ReadBodyAsync(request, cancellationToken);
+        if (json is null)
+        {
+            return Problem(StatusCodes.Status413PayloadTooLarge, Invariant($"The order is larger than {MaxOrderBytes:N0} bytes"), []);
+        }
+
+        try
+        {
+            OrderRequest order = OrderRequestParser.Parse(json);
+            DiscountResult result = DiscountCalculator.Calculate(order.Cart, order.Campaigns);
+            return Results.Json(PricedOrder.From(result), PricedOrder.JsonOptions);
+        }
+        catch (InputFormatException ex)
+        {
+            return Problem(StatusCodes.Status400BadRequest, "The order could not be read", ex.Errors);
+        }
+        catch (DiscountValidationException ex)
+        {
+            return Problem(StatusCodes.Status422UnprocessableEntity, "The order breaks a discount rule", ex.Errors);
+        }
+    }
+
+    /// <summary>
+    /// Reads the body as UTF-8 text, or returns null once it passes <see cref="MaxOrderBytes"/>. The limit is
+    /// checked while reading, because a request may not say its size up front (chunked transfer encoding).
+    /// </summary>
+    private static async Task<string?> ReadBodyAsync(HttpRequest request, CancellationToken cancellationToken)
+    {
+        if (request.ContentLength > MaxOrderBytes)
+        {
+            return null;
+        }
+
+        using var body = new MemoryStream();
+        byte[] buffer = new byte[16_384];
+        int read;
+        while ((read = await request.Body.ReadAsync(buffer, cancellationToken)) > 0)
+        {
+            if (body.Length + read > MaxOrderBytes)
+            {
+                return null;
+            }
+
+            body.Write(buffer, 0, read);
+        }
+
+        // StreamReader skips a byte order mark and replaces invalid UTF-8 with U+FFFD instead of throwing.
+        body.Position = 0;
+        using var reader = new StreamReader(body, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+        return await reader.ReadToEndAsync(cancellationToken);
+    }
+
+    private static IResult Problem(int statusCode, string title, IReadOnlyList<string> errors)
+        => Results.Problem(
+            statusCode: statusCode,
+            title: title,
+            extensions: new Dictionary<string, object?> { ["errors"] = errors });
+}

@@ -15,13 +15,11 @@ public sealed record PricedOrder(
     int PointsUsed,
     decimal FinalPrice)
 {
-    /// <summary>camelCase names and enum names as text, e.g. <c>"category": "OnTop"</c>.</summary>
-    public static JsonSerializerOptions JsonOptions { get; } = new()
-    {
-        WriteIndented = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        Converters = { new JsonStringEnumConverter() },
-    };
+    /// <summary>
+    /// camelCase names and enum names as text, e.g. <c>"category": "OnTop"</c>. Read-only, so no caller can
+    /// change how every other caller's results are written.
+    /// </summary>
+    public static JsonSerializerOptions JsonOptions { get; } = CreateJsonOptions();
 
     public static PricedOrder From(DiscountResult result)
     {
@@ -42,6 +40,18 @@ public sealed record PricedOrder(
     }
 
     public string ToJson() => JsonSerializer.Serialize(this, JsonOptions);
+
+    private static JsonSerializerOptions CreateJsonOptions()
+    {
+        var options = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            Converters = { new JsonStringEnumConverter() },
+        };
+        options.MakeReadOnly(populateMissingResolver: true);
+        return options;
+    }
 }
 
 /// <summary>One applied campaign in a <see cref="PricedOrder"/>.</summary>

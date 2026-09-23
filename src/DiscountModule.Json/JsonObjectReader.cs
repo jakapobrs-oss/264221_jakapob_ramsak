@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
 
@@ -32,7 +33,7 @@ internal sealed class JsonObjectReader
 
         foreach (JsonProperty property in element.EnumerateObject())
         {
-            if (!TryGetText(() => property.Name, out string propertyName))
+            if (!TryReadText(() => property.Name, out string? propertyName))
             {
                 errors.Add($"{path}: a property name is not valid text ({UnpairedSurrogate})");
                 continue;
@@ -80,7 +81,7 @@ internal sealed class JsonObjectReader
             return null;
         }
 
-        if (!TryGetText(value.GetString, out string? text))
+        if (!TryReadText(value.GetString, out string? text))
         {
             Report(name, $"{Describe(value)} is not valid text ({UnpairedSurrogate})");
             return null;
@@ -271,16 +272,16 @@ internal sealed class JsonObjectReader
     }
 
     /// <summary>Reads a name or a string value, or returns false when it holds an unpaired surrogate escape.</summary>
-    private static bool TryGetText<T>(Func<T> read, out T text)
+    private static bool TryReadText(Func<string?> read, [NotNullWhen(true)] out string? text)
     {
         try
         {
             text = read();
-            return true;
+            return text is not null;
         }
         catch (InvalidOperationException)
         {
-            text = default!;
+            text = null;
             return false;
         }
     }
