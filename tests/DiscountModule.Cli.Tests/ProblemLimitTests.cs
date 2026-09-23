@@ -1,4 +1,5 @@
 using System.Diagnostics;
+
 using DiscountModule.Json;
 
 namespace DiscountModule.Cli.Tests;

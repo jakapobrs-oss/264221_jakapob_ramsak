@@ -1,8 +1,11 @@
 using System.Text;
-using static System.FormattableString;
+
 using DiscountModule.Json;
 using DiscountModule.Validation;
+
 using Microsoft.Net.Http.Headers;
+
+using static System.FormattableString;
 
 namespace DiscountModule.Api;
 

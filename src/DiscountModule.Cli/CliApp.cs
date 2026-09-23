@@ -1,6 +1,7 @@
-using DiscountModule.Json;
 using DiscountModule.Cli.Output;
+using DiscountModule.Json;
 using DiscountModule.Validation;
+
 using static System.FormattableString;
 
 namespace DiscountModule.Cli;

@@ -16,6 +16,7 @@ jobs:
           dotnet-version: "10.0.x"
       - run: dotnet restore
       - run: dotnet build --no-restore --configuration Release
+      - run: dotnet format --no-restore --verify-no-changes
       - run: dotnet test --no-build --configuration Release --logger "trx;LogFileName=results.trx"
       - uses: actions/upload-artifact@v4
         if: always()

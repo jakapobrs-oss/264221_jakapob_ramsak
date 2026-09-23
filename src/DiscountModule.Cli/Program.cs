@@ -1,4 +1,5 @@
 using System.Text;
+
 using DiscountModule.Cli;
 
 // Item names may be Thai or any other script. On an old console code page they would print as "?", and
