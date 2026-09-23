@@ -19,7 +19,7 @@ public static class CliApp
     /// <summary>The input could not be read or understood (missing file, malformed JSON, unknown campaign type, bad usage).</summary>
     public const int ExitInputError = 2;
 
-    /// <summary>Something failed that the program does not expect; see Program.cs.</summary>
+    /// <summary>Something failed that the program does not expect (a bug, or e.g. a closed output pipe).</summary>
     public const int ExitUnexpectedError = 3;
 
     private const string StdinMarker = "-";
@@ -38,6 +38,32 @@ public static class CliApp
                     3 = unexpected error.
         Input format: see README.md or any file in examples/.
         """;
+
+    /// <summary>
+    /// Like <see cref="Run"/>, but an unexpected exception becomes one line on stderr and
+    /// <see cref="ExitUnexpectedError"/> instead of a stack trace. Program.cs uses this; tests call
+    /// <see cref="Run"/> directly so that a bug still surfaces as an exception.
+    /// </summary>
+    public static int RunSafely(string[] args, TextWriter stdout, TextWriter stderr, TextReader? stdin = null)
+    {
+        try
+        {
+            return Run(args, stdout, stderr, stdin);
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                stderr.WriteLine(ConsoleText.Escape($"Unexpected error: {ex.GetType().Name}: {ex.Message}"));
+            }
+            catch (IOException)
+            {
+                // stderr is gone too (e.g. both pipes closed); the exit code is all that is left to report.
+            }
+
+            return ExitUnexpectedError;
+        }
+    }
 
     public static int Run(string[] args, TextWriter stdout, TextWriter stderr, TextReader? stdin = null)
     {
@@ -66,7 +92,7 @@ public static class CliApp
                         stdout.WriteLine(Usage);
                         return ExitSuccess;
                     default:
-                        return UsageError(stderr, $"Unknown option '{arg}'");
+                        return UsageError(stderr, ConsoleText.Escape($"Unknown option '{arg}'"));
                 }
             }
 
@@ -130,7 +156,8 @@ public static class CliApp
         stderr.WriteLine($"{title} ({errors.Count}):");
         foreach (string error in errors)
         {
-            stderr.WriteLine($"  - {error}");
+            // Messages can quote input text (an item name, an unknown value); escaping keeps one problem per line.
+            stderr.WriteLine($"  - {ConsoleText.Escape(error)}");
         }
     }
 }

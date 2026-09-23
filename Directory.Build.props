@@ -2,8 +2,13 @@
   <PropertyGroup>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!--
+      Warnings are errors, so the set of warnings must not grow with the SDK: a newer SDK must not fail the
+      build with analyzers or warning waves this code was never checked against. The C# version already
+      follows the target framework (C# 14 for net10.0).
+    -->
+    <AnalysisLevel>10.0</AnalysisLevel>
   </PropertyGroup>
 </Project>

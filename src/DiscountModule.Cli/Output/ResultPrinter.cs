@@ -55,6 +55,9 @@ public static class ResultPrinter
             rows.Add(($"Points used: {result.PointsUsed}", null));
         }
 
+        // Item names come from the input: a newline or ESC in a name must not break the layout.
+        rows = [.. rows.Select(row => (ConsoleText.Escape(row.Label), row.Amount))];
+
         int labelWidth = Math.Max(MinLabelWidth, rows.Where(row => row.Amount is not null).Max(row => DisplayWidth(row.Label)) + ColumnGap);
         foreach ((string label, string? amount) in rows)
         {

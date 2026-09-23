@@ -81,6 +81,8 @@ Cart
 - cart must not be null; `Items` must not be null or empty; no null entries
 - each item: `Name` not blank; `0 <= UnitPrice <= 1,000,000,000` with at most 2 decimals;
   `1 <= Quantity <= 1,000,000`; `Category` must be a defined `ItemCategory`
+- when every item is valid: subtotal `<= 1,000,000,000,000,000` (checked only then, so one bad item
+  does not also produce a subtotal error)
 
 Campaign list
 - list must not be null; may be empty (final price = subtotal); no null entries
@@ -127,9 +129,16 @@ Error messages name the offending campaign/item and the rule, e.g.
 - **A9 — Items carry a quantity.** "1 T-Shirt: 350 THB" is quantity 1 × unit price 350.
 - **A10 — A free item (unit price 0) is allowed; an empty cart is not.** Applying discounts to an
   empty order is treated as a mistake.
-- **A11 — Supported magnitudes.** Unit prices and campaign amounts up to 1,000,000,000 THB and
-  quantities up to 1,000,000 per line are supported; larger values are rejected with a message.
-  Within these bounds no intermediate calculation can overflow `decimal`.
+- **A11 — Supported magnitudes.** Unit prices and campaign amounts up to 1,000,000,000 THB,
+  quantities up to 1,000,000 per line and an order subtotal up to 1,000,000,000,000,000 THB (one line
+  at the maximum price and quantity) are supported; larger values are rejected with a message.
+  Within these bounds no calculation can overflow or lose a digit: a running total has at most 18
+  significant digits (16 before the point, 2 after), a percentage rate at most 5 (1.0000), so every
+  product fits in the 28 digits a `decimal` holds exactly. Without the subtotal limit, an order of
+  8 × 10^22 THB with a 99.99% coupon would be rounded twice and come out 0.01 THB off.
+- **A12 — Item categories in the examples.** The assignment lists the items but not their categories.
+  T-Shirt and Hoodie must be Clothing for the 2,382.50 example; Hat, Belt and Bag are taken as
+  Accessories and Watch as Electronics. No example's result depends on these choices.
 
 ## 7. JSON input (CLI)
 
@@ -165,10 +174,14 @@ The CLI's `OrderRequestParser` checks the document's shape and leaves business r
   100 and slip past the 2-decimal rule); an unknown campaign
   type or category, listing the valid ones. Categories match whole names only, so `"1"` or
   `"Clothing,Accessories"` are rejected.
-- Every shape problem in the document is reported in one pass (exit code 2). A JSON syntax error stops the
-  parser at that error and is reported with its line and character column.
+- The shape problems in the document are reported in one pass (exit code 2). A JSON syntax error stops the
+  parser at that error and is reported with its line and character column. When a campaign's `type` is
+  missing or unknown, its other properties are not checked, because which ones belong depends on the type.
 - When the shape is right, the module's validation errors are printed one per line (exit code 1).
-  Success is 0; an unexpected failure prints one line and exits with 3.
+  Success is 0; an unexpected failure (`CliApp.RunSafely`) prints one line and exits with 3.
+- Text taken from the input (item names, unknown values, property names) is printed with control
+  characters escaped (`\n`, `\t`, `\u001b`), so an item or a problem never spans two lines and cannot
+  send terminal commands.
 - The campaign types live in one table (`CampaignTypes`): each entry names the type and reads its
   parameters, so accepting a new campaign type from JSON is one new entry.
 
@@ -192,7 +205,12 @@ Core (`tests/DiscountModule.Tests`)
   three-decimal amounts are rejected with a message, never an exception of another type
 - a derived campaign returning an undefined `CampaignCategory` is rejected
 - `DiscountValidationException.Errors` is a snapshot (mutating the caller's list afterwards changes nothing)
-- input cart not mutated
+- input cart not mutated; a list that changes after its first read cannot get an unvalidated item or
+  campaign priced (the calculator works on its own copy)
+- percentages with more than 2 decimals are rejected (0.001, 33.333, 0.5 - 1e-28); 0.49% of 1.00 → 0.00
+- subtotal limit: two lines at the maximum price and quantity are rejected; at the limit, a discount whose
+  exact value ends in .004999… is rounded down (no double rounding)
+- messages and descriptions are identical under a culture that writes "12,5" (`CultureTests`)
 
 CLI (`tests/DiscountModule.Cli.Tests`)
 - each example file produces the expected final price
@@ -202,4 +220,6 @@ CLI (`tests/DiscountModule.Cli.Tests`)
   empty input; missing file; a failing input stream
 - exit code 1 with every broken rule listed (`invalid-values.json`), exit code 2 with every shape problem
   listed (`invalid-format.json`), usage errors (no file, two files, unknown option, `--`)
-- text output: items, breakdown and total in one aligned column, also with Thai item names; JSON output order
+- text output: items, breakdown and total in one aligned column, also with Thai item names; control
+  characters in a name or in an error are escaped; JSON output order
+- an unexpected failure (a broken output stream) exits with 3 and one line on stderr

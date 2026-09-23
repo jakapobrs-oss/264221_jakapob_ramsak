@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -77,10 +78,75 @@ public class CliAppTests
         string[] lines = Lines(stdout);
 
         Assert.Equal(CliApp.ExitSuccess, exitCode);
-        Assert.StartsWith("  1 x เสื้อยืด (Clothing)", lines[1]);
+        Assert.Matches(@"^  1 x เสื้อยืด \(Clothing\) @ 350\.00 +350\.00$", lines[1]);
+        Assert.Matches(@"^  1 x Hat \(Accessories\) @ 250\.00 +250\.00$", lines[2]);
+        Assert.Matches(@"^Subtotal +600\.00$", lines[3]);
+
         // "เสื้อยืด" is 8 UTF-16 characters but 5 columns wide: its 3 vowel and tone marks sit above the
         // consonants. The Thai line therefore has 3 more characters than the Hat line of the same width.
         Assert.Equal(lines[2].Length + 3, lines[1].Length);
+
+        // On screen, every amount ends in the same column.
+        string[] amountLines = [.. lines.Where(line => Regex.IsMatch(line, @"\d\.\d\d$"))];
+        Assert.Equal(5, amountLines.Length); // 2 items, subtotal, total discount, final price
+        Assert.Single(amountLines.Select(ScreenColumns).Distinct());
+    }
+
+    /// <summary>Columns a line takes on screen: combining marks (Thai vowels and tone marks above or below) take none.</summary>
+    private static int ScreenColumns(string line)
+        => line.Count(character => CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark);
+
+    [Fact]
+    public void Control_characters_in_an_item_name_are_escaped_so_every_line_stays_whole()
+    {
+        // The JSON string "Line\nbreak" holds a real newline, and ESC could recolour the terminal.
+        string name = JsonSerializer.Serialize("Line\nbreak" + (char)27 + "[31m");
+        string order = $$"""{ "items": [ { "name": {{name}}, "category": "Clothing", "unitPrice": 350 } ] }""";
+
+        var (exitCode, stdout, _) = RunWithInput(order, "-");
+        string[] lines = Lines(stdout);
+
+        Assert.Equal(CliApp.ExitSuccess, exitCode);
+        Assert.DoesNotContain((char)27, stdout);
+        Assert.StartsWith(@"  1 x Line\nbreak\u001b[31m (Clothing) @ 350.00", lines[1]);
+        Assert.Matches(@"^Subtotal +350\.00$", lines[2]);
+    }
+
+    [Fact]
+    public void Control_characters_quoted_in_an_error_keep_it_on_one_line()
+    {
+        string name = JsonSerializer.Serialize("Bad\nname");
+        string order = $$"""{ "items": [ { "name": {{name}}, "category": "Clothing", "unitPrice": -1 } ] }""";
+
+        var (exitCode, _, stderr) = RunWithInput(order, "-");
+
+        Assert.Equal(CliApp.ExitValidationError, exitCode);
+        Assert.Equal(
+            ["Invalid order (1):", @"  - Item #1 'Bad\nname': unit price must not be negative (got -1)"],
+            Lines(stderr));
+    }
+
+    [Fact]
+    public void An_unexpected_failure_exits_with_3_and_one_line_instead_of_a_stack_trace()
+    {
+        var stderr = new StringWriter();
+
+        int exitCode = CliApp.RunSafely([Example("01-fixed-amount.json")], new BrokenWriter(), stderr);
+
+        Assert.Equal(CliApp.ExitUnexpectedError, exitCode);
+        Assert.Equal("Unexpected error: IOException: pipe closed", stderr.ToString().TrimEnd());
+    }
+
+    /// <summary>An output that fails like a closed pipe.</summary>
+    private sealed class BrokenWriter : TextWriter
+    {
+        public override System.Text.Encoding Encoding => System.Text.Encoding.UTF8;
+
+        public override void Write(char value) => throw new IOException("pipe closed");
+
+        public override void Write(string? value) => throw new IOException("pipe closed");
+
+        public override void WriteLine(string? value) => throw new IOException("pipe closed");
     }
 
     [Fact]

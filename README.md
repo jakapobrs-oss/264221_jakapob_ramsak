@@ -4,7 +4,7 @@ A small, well-tested .NET library that calculates the final price of an order by
 campaigns to the items in a shopping cart, plus a command line front end that reads an order from a
 JSON file. Built for the Playtorium developer take-home assignment.
 
-- **Language / runtime:** C# 14 on .NET 10. `decimal` for money, immutable records, no third-party
+- **Language / runtime:** C# 14 on .NET 10. `decimal` for money, records, no third-party
   packages in the module or the CLI (the tests use xUnit).
 - **Tests:** `dotnet test` runs both test projects (see [Tests](#tests)).
 - **Design notes and assumptions:** [`docs/DESIGN.md`](docs/DESIGN.md), summarised below.
@@ -103,7 +103,9 @@ Problems are printed on stderr, one per line.
 - The file is checked strictly, and every problem is reported with its JSON path: a missing or
   unexpected property (even one set to `null`), a property given twice, a number written as a string,
   a fractional quantity, a number a `decimal` cannot hold exactly (such as `1e-30`), an unknown type or
-  category. `null` is never a valid value; leave an optional property out instead.
+  category. `null` is never a valid value; leave an optional property out instead. When a campaign's
+  `type` is missing or unknown, its other properties are not checked, because which ones belong
+  depends on the type.
 
 All files in [`examples/`](examples/) are runnable:
 
@@ -167,10 +169,11 @@ The assignment leaves a few points open. These are the readings used, with the r
 | A5 | **Seasonal uses floor division** (830 THB at "40 for every 300" → 2 × 40), matching the example. `discountAmount` may not exceed `everyAmount`. |
 | A6 | **The final price never goes below zero.** A 1,000 THB coupon on a 600 THB cart gives 0. |
 | A7 | **One campaign per category is enforced, not resolved.** Two campaigns of the same category are rejected with a clear message rather than silently choosing one. |
-| A8 | **Money is `decimal` at satang precision.** Prices and amounts may have at most 2 decimals, and so may percentages (12.5 or 33.33, not 33.333), which keeps every calculation exact. Each discount is rounded half away from zero to 2 decimals. |
+| A8 | **Money is `decimal` at satang precision.** Prices and amounts may have at most 2 decimals, and so may percentages (12.5 or 33.33, not 33.333). Together with the limits in A11 this keeps every calculation exact, so each discount is rounded only once: half away from zero, to 2 decimals. |
 | A9 | **Items carry a quantity** (`unitPrice × quantity`). |
 | A10 | **A free item (price 0) is allowed; an empty cart is not.** |
-| A11 | **Supported magnitudes:** prices and amounts up to 1,000,000,000 THB, quantities up to 1,000,000 per line. Larger values are rejected; within these bounds no calculation can overflow. |
+| A11 | **Supported magnitudes:** prices and amounts up to 1,000,000,000 THB, quantities up to 1,000,000 per line, and an order subtotal up to 1,000,000,000,000,000 THB (one line at the maximum price and quantity). Larger values are rejected; within these bounds no calculation can overflow or lose a digit. |
+| A12 | **Item categories in the examples.** The assignment names the items but not their categories. T-Shirt and Hoodie must be Clothing for the 2,382.50 example to work; Hat, Belt and Bag are taken as Accessories and Watch as Electronics. None of these choices changes any example's result. |
 
 ## Validation and resilience
 
@@ -178,7 +181,8 @@ The assignment leaves a few points open. These are the readings used, with the r
 problems in one `DiscountValidationException` (`Errors` has one message per problem):
 
 - cart: missing or empty item list, missing items, blank name, negative or out-of-range price, a price
-  with more than 2 decimals, quantity below 1 or above the limit, undefined category
+  with more than 2 decimals, quantity below 1 or above the limit, undefined category, a subtotal above
+  the limit
 - campaigns: missing entries, more than one campaign per category, amount ≤ 0, out of range or with more
   than 2 decimals, percentage outside (0, 100] or with more than 2 decimals, points below 1, seasonal
   threshold or discount ≤ 0, discount above the threshold, a campaign type reporting an undefined category
@@ -187,9 +191,11 @@ The calculator works on its own copy of the item and campaign lists, so a caller
 another thread cannot slip an unchecked value between validation and calculation. Messages and
 descriptions format numbers the same way on every machine, whatever its culture settings.
 
-The CLI checks the file in two passes. It first reports every problem with the file's shape (exit
+The CLI checks the file in two passes. It first reports the problems with the file's shape (exit
 code 2). Once the shape is right, the module reports every broken business rule (exit code 1). A JSON
-syntax error stops the first pass at that error, since nothing after it can be read reliably.
+syntax error stops the first pass at that error, since nothing after it can be read reliably. Text
+taken from the input, such as an item name, is printed with control characters escaped (`\n`, `\t`),
+so each item and each problem stays on its own line.
 
 ## Project structure
 
@@ -243,7 +249,8 @@ Coverage highlights: the five worked examples from the assignment and three comb
 independence; one-per-category enforcement; caps (final price ≥ 0, points cap including rounding down,
 seasonal never exceeding the total); rounding (including the 0.005 midpoint); every validation rule,
 including out-of-range magnitudes and 3-decimal amounts; culture-independent messages; every shape
-problem the CLI reports, with its exact message; each CLI exit code; Thai item names in the text output.
+problem the CLI reports, with its exact message; each CLI exit code (0 to 3); Thai item names and control
+characters in the text output.
 
 `.github/workflows/ci.yml` builds and runs the same tests with GitHub Actions.
 
