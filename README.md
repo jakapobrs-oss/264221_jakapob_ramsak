@@ -149,6 +149,9 @@ configuration, which a real deployment would add in front of it.
   (`category`, `percentage`), `Points` (`points`), `Seasonal` (`everyAmount`, `discountAmount`).
 - Property names, types and categories match in any letter case. Comments and trailing commas are allowed.
 - `campaigns` may be empty or left out: the final price is then the subtotal.
+- Files, stdin and HTTP bodies must be UTF-8; a UTF-8 byte order mark is allowed. A UTF-16 file is refused
+  with a message saying so. Windows PowerShell 5.1 writes UTF-16 with `>`, so save order files with
+  `Set-Content -Encoding utf8` there, or use PowerShell 7.
 - The file is checked strictly, and every problem is reported with its JSON path: a missing or
   unexpected property (even one set to `null`), a property given twice, a number written as a string,
   a fractional quantity, a number a `decimal` cannot hold exactly (such as `1e-30`), bytes that are not
@@ -273,9 +276,9 @@ pwsh tools/mutation-check.ps1        # break the code on purpose and confirm the
 | Project | Tests | What they cover |
 |---------|-------|-----------------|
 | `DiscountModule.Tests` | 107 | worked examples, campaign rules and caps, application order, validation, breakdown, culture; 500 random orders from a fixed seed checked against rules that must always hold; an example campaign added without changing the calculator |
-| `DiscountModule.Json.Tests` | 52 | every shape problem the parser reports, with its exact message and JSON path |
-| `DiscountModule.Cli.Tests` | 37 | exit codes 0 to 3, text and JSON output, Thai item names, control characters, and 3,300 damaged orders generated from a fixed seed (fuzzing) that must never crash the CLI |
-| `DiscountModule.Api.Tests` | 18 | the HTTP endpoint running in memory: every example order, 400, 413, 415, 422 and problem details |
+| `DiscountModule.Json.Tests` | 77 | every shape problem the parser reports, with its exact message and JSON path; strict UTF-8; the limit of 100 problems, also inside one object |
+| `DiscountModule.Cli.Tests` | 43 | exit codes 0 to 3, text and JSON output, Thai item names, control characters, UTF-8 files and stdin, the problem limit, and 3,300 damaged orders generated from a fixed seed (fuzzing) that must never crash the CLI |
+| `DiscountModule.Api.Tests` | 37 | the HTTP endpoint running in memory: the same JSON as the CLI for every example order, 400, 413 at the exact byte limit, 415, 422, UTF-8 only, the problem limit, problem details |
 
 - **Fuzzing found a real bug.** A JSON string holding an escaped lone surrogate, half of a UTF-16 pair,
   crashed the reader. It is now reported as an input error with its JSON path, and a test keeps it that way.

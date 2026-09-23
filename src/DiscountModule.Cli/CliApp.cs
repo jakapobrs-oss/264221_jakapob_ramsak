@@ -114,7 +114,7 @@ public static class CliApp
         try
         {
             OrderRequest request = source == StdinMarker
-                ? OrderRequestParser.Read(stdin ?? Console.In)
+                ? OrderRequestParser.Read(stdin ?? OrderRequestParser.CreateUtf8Reader(Console.OpenStandardInput()))
                 : OrderRequestParser.ReadFile(source);
 
             DiscountResult result = DiscountCalculator.Calculate(request.Cart, request.Campaigns);

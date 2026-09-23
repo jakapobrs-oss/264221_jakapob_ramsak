@@ -53,7 +53,13 @@ $mutants = @(
     @{ Name = 'problems: JSON reader never stops at the limit'; File = 'src/DiscountModule.Json/OrderRequestParser.cs'; Find = '=> errors.Count > ProblemList.MaxReportedProblems;'; Replace = '=> errors.Count < 0;' },
     @{ Name = 'problems: CLI lists every broken rule'; File = 'src/DiscountModule.Cli/CliApp.cs'; Find = 'ProblemList.ForDisplay(ex.Errors)'; Replace = 'ex.Errors' },
     @{ Name = 'problems: API lists every broken rule'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'ProblemList.ForDisplay(ex.Errors)'; Replace = 'ex.Errors' },
-    @{ Name = 'problems: no stop inside one object'; File = 'src/DiscountModule.Json/JsonObjectReader.cs'; Find = 'private static bool IsFull(List<string> errors) => errors.Count > ProblemList.MaxReportedProblems;'; Replace = 'private static bool IsFull(List<string> errors) => errors.Count < 0;' }
+    @{ Name = 'problems: no stop inside one object'; File = 'src/DiscountModule.Json/JsonObjectReader.cs'; Find = 'private static bool IsFull(List<string> errors) => errors.Count > ProblemList.MaxReportedProblems;'; Replace = 'private static bool IsFull(List<string> errors) => errors.Count < 0;' },
+    @{ Name = 'UTF-8: invalid bytes become U+FFFD'; File = 'src/DiscountModule.Json/OrderRequestParser.cs'; Find = 'json = StrictUtf8.GetString(utf8);'; Replace = 'json = Encoding.UTF8.GetString(utf8);' },
+    @{ Name = 'UTF-8: reader follows a byte order mark'; File = 'src/DiscountModule.Json/OrderRequestParser.cs'; Find = 'StrictUtf8, detectEncodingFromByteOrderMarks: false);'; Replace = 'StrictUtf8, detectEncodingFromByteOrderMarks: true);' },
+    @{ Name = 'UTF-8: UTF-16 byte order mark not named'; File = 'src/DiscountModule.Json/OrderRequestParser.cs'; Find = 'if (utf8.StartsWith(Utf16LittleEndianMark) || utf8.StartsWith(Utf16BigEndianMark))'; Replace = 'if (utf8.Length < 0)' },
+    @{ Name = 'UTF-8: U+FEFF not skipped'; File = 'src/DiscountModule.Json/OrderRequestParser.cs'; Find = 'if (json.StartsWith(ByteOrderMark))'; Replace = 'if (json.Length < 0)' },
+    @{ Name = 'UTF-8: file decoded by guesswork'; File = 'src/DiscountModule.Json/OrderRequestParser.cs'; Find = 'utf8 = File.ReadAllBytes(path);'; Replace = 'utf8 = Encoding.UTF8.GetBytes(File.ReadAllText(path));' },
+    @{ Name = 'API: body decoded leniently'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'OrderRequest order = OrderRequestParser.ParseUtf8(body);'; Replace = 'OrderRequest order = OrderRequestParser.Parse(System.Text.Encoding.UTF8.GetString(body));' }
 )
 
 $survivors = 0

@@ -191,7 +191,9 @@ The CLI's `OrderRequestParser` checks the document's shape and leaves business r
 - The HTTP API answers the same two passes with status codes: 400 for shape problems, 422 for broken
   business rules, both as RFC 9457 problem details listing the problems in `errors`: all of them up to 100.
   Past 100, the JSON reader stops and ends the list with "Stopped after 100 problems; fix these first", and a
-  list of broken rules ends with "... and N more problems not shown". A body that is not
+  list of broken rules ends with "... and N more problems not shown". Files, stdin and bodies are decoded as
+  strict UTF-8 (a UTF-8 byte order mark is skipped); invalid bytes or a UTF-16 byte order mark are an input
+  error that names the offending byte. A body that is not
   `application/json` gets 415; a body over 1 MiB gets 413, checked from `Content-Length` before reading and
   again while reading (a request may not declare its size). Success is 200 with the `PricedOrder` JSON, the
   same shape the CLI prints with `--json`.
