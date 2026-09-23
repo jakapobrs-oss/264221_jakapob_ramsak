@@ -197,6 +197,9 @@ The CLI's `OrderRequestParser` checks the document's shape and leaves business r
 - Text taken from the input (item names, unknown values, property names) is printed with control
   characters escaped (`\n`, `\t`, `\u001b`), so an item or a problem never spans two lines and cannot
   send terminal commands.
+- Characters that change the direction of the text (U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to
+  U+2069) are escaped the same way, so an item name cannot reorder how a line reads ("Trojan Source").
+  Zero width spaces and joiners are printed as they are: real Thai, Arabic and emoji text uses them.
 - The HTTP API answers the same two passes with status codes: 400 for shape problems, 422 for broken
   business rules, both as RFC 9457 problem details listing the problems in `errors`: all of them up to 100.
   Past 100, the JSON reader stops and ends the list with "Stopped after 100 problems; fix these first", and a
@@ -254,7 +257,8 @@ CLI (`tests/DiscountModule.Cli.Tests`)
 - exit code 1 with every broken rule listed (`invalid-values.json`), exit code 2 with every shape problem
   listed (`invalid-format.json`), usage errors (no file, two files, unknown option, `--`)
 - text output: items, breakdown and total in one aligned column, also with Thai item names; control
-  characters in a name or in an error are escaped; JSON output order
+  characters in a name or in an error are escaped, and so are direction overrides, while the zero width
+  characters of real text are kept; JSON output order
 - a 10,000-character item name is shortened to 60 columns ending in "…", so no line grows with it; a Thai
   name is cut by columns and keeps the marks of its last letter
 - an unexpected failure (a broken output stream) exits with 3 and one line on stderr
@@ -277,5 +281,5 @@ Core additions
   min(points, floor(20% of the price at that step)); a category discount equals min(listed-price
   discount, the category's share of the price before it), rounded once
 
-Mutation check (`tools/mutation-check.ps1`): 37 deliberate faults, one at a time, each must make at least one
+Mutation check (`tools/mutation-check.ps1`): 38 deliberate faults, one at a time, each must make at least one
 test fail.

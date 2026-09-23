@@ -159,6 +159,35 @@ public class CliAppTests
     }
 
     [Fact]
+    public void Direction_overrides_in_an_item_name_are_escaped_so_they_cannot_reorder_the_line()
+    {
+        // "Trojan Source": the right-to-left override U+202E would show the rest of the line reversed, so a
+        // name could make the amount column read differently on screen.
+        const char RightToLeftOverride = (char)0x202E;
+        string name = JsonSerializer.Serialize("Coat" + RightToLeftOverride + "00.01");
+        string order = $$"""{ "items": [ { "name": {{name}}, "category": "Clothing", "unitPrice": 350 } ] }""";
+
+        var (exitCode, stdout, _) = RunWithInput(order, "-");
+
+        Assert.Equal(CliApp.ExitSuccess, exitCode);
+        Assert.DoesNotContain(RightToLeftOverride, stdout);
+        Assert.StartsWith("  1 x Coat" + @"\" + "u202e00.01 (Clothing) @ 350.00", Lines(stdout)[1]);
+    }
+
+    [Fact]
+    public void Zero_width_characters_of_real_text_are_printed_as_they_are()
+    {
+        // A zero width space marks a word break in Thai; a zero width joiner builds an emoji sequence.
+        string text = "เสื้อ" + (char)0x200B + "ยืด " + char.ConvertFromUtf32(0x1F469) + (char)0x200D + char.ConvertFromUtf32(0x1F4BB);
+        string order = $$"""{ "items": [ { "name": {{JsonSerializer.Serialize(text)}}, "category": "Clothing", "unitPrice": 350 } ] }""";
+
+        var (exitCode, stdout, _) = RunWithInput(order, "-");
+
+        Assert.Equal(CliApp.ExitSuccess, exitCode);
+        Assert.StartsWith($"  1 x {text} (Clothing) @ 350.00", Lines(stdout)[1], StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void An_unexpected_failure_exits_with_3_and_one_line_instead_of_a_stack_trace()
     {
         var stderr = new StringWriter();

@@ -261,7 +261,9 @@ The front ends check the JSON in two passes. They first report the problems with
 (CLI exit code 2, HTTP 400). Once the shape is right, the module reports every broken business rule
 (exit code 1, HTTP 422). A JSON syntax error stops the first pass at that error, since nothing after it
 can be read reliably. The CLI prints text taken from the input, such as an item name, with control
-characters escaped (`\n`, `\t`), so each item and each problem stays on its own line.
+characters escaped (`\n`, `\t`), so each item and each problem stays on its own line. Characters that
+change the direction of the text, such as U+202E, are escaped too, so a name cannot make a line read in
+another order.
 
 The module itself reports every broken rule. The front ends list at most 100 of them, followed by a line
 saying how many were left out. The JSON reader stops reading after 100 shape problems and ends the list
@@ -285,9 +287,9 @@ pwsh tools/mutation-check.ps1        # break the code on purpose and confirm the
 
 - **Fuzzing found a real bug.** A JSON string holding an escaped lone surrogate, half of a UTF-16 pair,
   crashed the reader. It is now reported as an input error with its JSON path, and a test keeps it that way.
-- **Mutation check.** [`tools/mutation-check.ps1`](tools/mutation-check.ps1) breaks 37 rules one at a time
+- **Mutation check.** [`tools/mutation-check.ps1`](tools/mutation-check.ps1) breaks 38 rules one at a time
   (rounding mode, sort order, caps, validation, JSON checks, strict UTF-8, output escaping, API limits, the
-  problem limit) and runs every test after each change. All 37 are caught.
+  problem limit) and runs every test after each change. All 38 are caught.
 - **CI.** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) is a GitHub Actions workflow that builds the
   solution, checks its formatting with `dotnet format` and runs every test on each push to `main`, on pull
   requests and on demand.
