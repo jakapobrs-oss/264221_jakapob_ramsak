@@ -1,5 +1,7 @@
 using DiscountModule.Models;
 
+using static System.FormattableString;
+
 namespace DiscountModule.Campaigns;
 
 /// <summary>On Top: subtracts a percentage (0-100) of the price of every item in one category.</summary>
@@ -13,12 +15,12 @@ public sealed record CategoryPercentageOnTop(ItemCategory ItemCategory, decimal 
         if (!Enum.IsDefined(ItemCategory))
         {
             string supported = string.Join(", ", Enum.GetNames<ItemCategory>());
-            yield return $"item category must be one of {supported} (got {ItemCategory})";
+            yield return Invariant($"item category must be one of {supported} (got {(int)ItemCategory})");
         }
 
         if (Percentage <= 0 || Percentage > 100)
         {
-            yield return $"percentage must be greater than 0 and at most 100 (got {Percentage})";
+            yield return Invariant($"percentage must be greater than 0 and at most 100 (got {Percentage})");
         }
     }
 
@@ -28,7 +30,7 @@ public sealed record CategoryPercentageOnTop(ItemCategory ItemCategory, decimal 
         => CategoryTotal(context.Cart) * (Percentage / 100m);
 
     public override string Describe(DiscountContext context)
-        => $"{Percentage:0.##}% off {ItemCategory} ({Money.Format(CategoryTotal(context.Cart))} THB)";
+        => Invariant($"{Percentage:0.##}% off {ItemCategory} ({Money.Format(CategoryTotal(context.Cart))} THB)");
 
     private decimal CategoryTotal(Cart cart)
         => cart.Items.Where(item => item.Category == ItemCategory).Sum(item => item.LineTotal);

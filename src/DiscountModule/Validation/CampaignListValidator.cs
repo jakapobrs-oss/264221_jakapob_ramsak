@@ -1,5 +1,7 @@
 using DiscountModule.Campaigns;
 
+using static System.FormattableString;
+
 namespace DiscountModule.Validation;
 
 /// <summary>Checks the campaign list rules (design notes, section 5) and returns every problem found, not just the first.</summary>
@@ -29,7 +31,7 @@ internal static class CampaignListValidator
             // The calculator orders by category, so a campaign type that reports an unknown one is rejected.
             if (!Enum.IsDefined(campaign.Category))
             {
-                yield return $"Campaign #{position} '{campaign.Name}': category must be one of {SupportedCategories} (got {campaign.Category})";
+                yield return Invariant($"Campaign #{position} '{campaign.Name}': category must be one of {SupportedCategories} (got {(int)campaign.Category})");
             }
 
             foreach (string problem in campaign.Validate())

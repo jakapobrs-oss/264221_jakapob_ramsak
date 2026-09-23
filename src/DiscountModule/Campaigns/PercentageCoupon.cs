@@ -1,3 +1,5 @@
+using static System.FormattableString;
+
 namespace DiscountModule.Campaigns;
 
 /// <summary>Coupon: subtracts a percentage (0-100) of the order total.</summary>
@@ -10,7 +12,7 @@ public sealed record PercentageCoupon(decimal Percentage) : Campaign
     {
         if (Percentage <= 0 || Percentage > 100)
         {
-            yield return $"percentage must be greater than 0 and at most 100 (got {Percentage})";
+            yield return Invariant($"percentage must be greater than 0 and at most 100 (got {Percentage})");
         }
     }
 
@@ -19,5 +21,5 @@ public sealed record PercentageCoupon(decimal Percentage) : Campaign
         => context.RunningTotal * (Percentage / 100m);
 
     public override string Describe(DiscountContext context)
-        => $"{Percentage:0.##}% off {Money.Format(context.RunningTotal)} THB";
+        => Invariant($"{Percentage:0.##}% off {Money.Format(context.RunningTotal)} THB");
 }

@@ -2,6 +2,8 @@ using System.Globalization;
 
 using DiscountModule.Models;
 
+using static System.FormattableString;
+
 namespace DiscountModule.Validation;
 
 /// <summary>
@@ -61,16 +63,17 @@ internal static class CartValidator
 
         if (item.Quantity < 1)
         {
-            yield return $"{label}: quantity must be at least 1 (got {item.Quantity})";
+            yield return Invariant($"{label}: quantity must be at least 1 (got {item.Quantity})");
         }
         else if (item.Quantity > InputLimits.MaxQuantity)
         {
-            yield return $"{label}: quantity is too large (max {MaxQuantityText}, got {item.Quantity})";
+            yield return Invariant($"{label}: quantity is too large (max {MaxQuantityText}, got {item.Quantity})");
         }
 
         if (!Enum.IsDefined(item.Category))
         {
-            yield return $"{label}: category must be one of {SupportedCategories} (got {item.Category})";
+            // An undefined enum value has no name, so it is shown as its number (culture-invariant).
+            yield return Invariant($"{label}: category must be one of {SupportedCategories} (got {(int)item.Category})");
         }
     }
 }

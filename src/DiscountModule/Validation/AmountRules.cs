@@ -1,10 +1,13 @@
 using System.Globalization;
 
+using static System.FormattableString;
+
 namespace DiscountModule.Validation;
 
 /// <summary>
 /// Rules shared by every money input (unit price, coupon amount, seasonal amounts), so they are
 /// all checked the same way: within range and a whole number of satang.
+/// Messages format numbers with the invariant culture, like every message in this module.
 /// </summary>
 internal static class AmountRules
 {
@@ -15,7 +18,7 @@ internal static class AmountRules
     {
         if (value < 0)
         {
-            yield return $"{field} must not be negative (got {value})";
+            yield return Invariant($"{field} must not be negative (got {value})");
         }
 
         foreach (string problem in RangeAndPrecision(field, value))
@@ -29,7 +32,7 @@ internal static class AmountRules
     {
         if (value <= 0)
         {
-            yield return $"{field} must be greater than 0 (got {value})";
+            yield return Invariant($"{field} must be greater than 0 (got {value})");
         }
 
         foreach (string problem in RangeAndPrecision(field, value))
@@ -42,12 +45,12 @@ internal static class AmountRules
     {
         if (value > InputLimits.MaxAmount)
         {
-            yield return $"{field} is too large (max {MaxAmountText}, got {value})";
+            yield return Invariant($"{field} is too large (max {MaxAmountText}, got {value})");
         }
 
         if (!Money.HasAtMostTwoDecimalPlaces(value))
         {
-            yield return $"{field} must have at most 2 decimal places (got {value})";
+            yield return Invariant($"{field} must have at most 2 decimal places (got {value})");
         }
     }
 }

@@ -1,5 +1,7 @@
 using DiscountModule.Validation;
 
+using static System.FormattableString;
+
 namespace DiscountModule.Campaigns;
 
 /// <summary>Seasonal: for every <see cref="EveryAmount"/> THB of the order total, subtracts <see cref="DiscountAmount"/> THB.</summary>
@@ -20,7 +22,7 @@ public sealed record SeasonalCampaign(decimal EveryAmount, decimal DiscountAmoun
         // positive; otherwise the messages above already explain the problem.
         if (EveryAmount > 0 && DiscountAmount > EveryAmount)
         {
-            problems.Add($"discount amount must not exceed every amount (got {DiscountAmount} > {EveryAmount})");
+            problems.Add(Invariant($"discount amount must not exceed every amount (got {DiscountAmount} > {EveryAmount})"));
         }
 
         return problems;
@@ -32,7 +34,7 @@ public sealed record SeasonalCampaign(decimal EveryAmount, decimal DiscountAmoun
 
     public override string Describe(DiscountContext context)
         => $"{Money.Format(DiscountAmount)} THB off every {Money.Format(EveryAmount)} THB "
-            + $"of {Money.Format(context.RunningTotal)} THB ({CompletedSteps(context.RunningTotal):0} x {Money.Format(DiscountAmount)})";
+            + Invariant($"of {Money.Format(context.RunningTotal)} THB ({CompletedSteps(context.RunningTotal):0} x {Money.Format(DiscountAmount)})");
 
     private decimal CompletedSteps(decimal runningTotal) => Math.Floor(runningTotal / EveryAmount);
 }
