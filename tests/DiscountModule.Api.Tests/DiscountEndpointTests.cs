@@ -57,6 +57,7 @@ public class DiscountEndpointTests(WebApplicationFactory<Program> factory) : ICl
     [InlineData("06-all-categories.json", "567.00")]
     [InlineData("07-points-capped-after-coupon.json", "558.00")]
     [InlineData("08-coupon-then-category.json", "170.00")]
+    [InlineData("09-category-capped-after-coupon.json", "500.00")]
     public async Task Example_orders_are_priced(string file, string expectedFinalPrice)
     {
         HttpResponseMessage response = await PostAsync(Example(file));

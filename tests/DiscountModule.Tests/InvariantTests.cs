@@ -107,6 +107,31 @@ public class InvariantTests
         }
     }
 
+    [Fact]
+    public void A_category_discount_never_exceeds_the_category_share_of_the_price_before_it()
+    {
+        foreach (RandomOrder order in RandomOrders())
+        {
+            DiscountResult result = order.Calculate();
+            AppliedDiscount? categoryStep = result.AppliedDiscounts.SingleOrDefault(step => step.Campaign is CategoryPercentageOnTop);
+            if (categoryStep is null)
+            {
+                continue;
+            }
+
+            var campaign = (CategoryPercentageOnTop)categoryStep.Campaign;
+            decimal categoryTotal = order.Cart.Items.Where(item => item.Category == campaign.ItemCategory).Sum(item => item.LineTotal);
+            decimal listedPriceDiscount = categoryTotal * campaign.Percentage / 100m;
+
+            // The random orders are small, so this decimal division is exact far beyond satang.
+            decimal shareLeft = result.Subtotal == 0 ? 0m : categoryTotal * categoryStep.PriceBefore / result.Subtotal;
+            decimal expected = Math.Round(Math.Min(listedPriceDiscount, shareLeft), 2, MidpointRounding.AwayFromZero);
+
+            Assert.True(categoryStep.DiscountAmount == expected,
+                $"{order}: category discount {categoryStep.DiscountAmount}; listed-price discount {listedPriceDiscount}, share left {shareLeft}");
+        }
+    }
+
     /// <summary>One random valid order, labelled with its case number so a failure can be traced back.</summary>
     private sealed record RandomOrder(int Case, Cart Cart, Campaign[] Campaigns)
     {
