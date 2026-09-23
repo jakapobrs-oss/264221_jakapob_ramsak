@@ -230,6 +230,41 @@ public class OrderRequestParserTests
             Assert.Single(ParseFails(json).Errors));
     }
 
+    // JSON escapes are assembled at run time ("\\u" + ...) so that no tool or editor turns them into raw characters.
+    private static readonly string HalfSurrogateEscape = "\\u" + "D800";
+
+    [Fact]
+    public void A_string_holding_half_a_surrogate_pair_is_reported_instead_of_crashing()
+    {
+        // Found by the fuzz tests: reading this string used to throw InvalidOperationException.
+        string json = $$"""{ "items": [ { "name": "{{HalfSurrogateEscape}}", "category": "Clothing", "unitPrice": 1 } ] }""";
+
+        Assert.Equal(
+            $"$.items[0].name: the string \"{HalfSurrogateEscape}\" is not valid text (it contains an unpaired surrogate escape)",
+            Assert.Single(ParseFails(json).Errors));
+    }
+
+    [Fact]
+    public void A_property_name_holding_half_a_surrogate_pair_is_reported_instead_of_crashing()
+    {
+        string json = $$"""{ "items": [ { "{{HalfSurrogateEscape}}": 1, "name": "Hat", "category": "Clothing", "unitPrice": 1 } ] }""";
+
+        Assert.Equal(
+            "$.items[0]: a property name is not valid text (it contains an unpaired surrogate escape)",
+            Assert.Single(ParseFails(json).Errors));
+    }
+
+    [Fact]
+    public void Text_holding_a_raw_half_surrogate_is_reported_instead_of_crashing()
+    {
+        // Only possible through Parse(string); files and stdin are decoded before they get here.
+        string json = "{ \"items\": [ { \"name\": \"" + (char)0xD800 + "\", \"category\": \"Clothing\", \"unitPrice\": 1 } ] }";
+
+        Assert.Equal(
+            "Input is not valid text: it contains half of a surrogate pair",
+            Assert.Single(ParseFails(json).Errors));
+    }
+
     [Fact]
     public void A_missing_file_is_reported_by_its_path()
     {

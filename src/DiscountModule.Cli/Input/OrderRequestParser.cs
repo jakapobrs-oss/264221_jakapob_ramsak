@@ -93,6 +93,11 @@ public static class OrderRequestParser
                 : "";
             throw new InputFormatException($"Malformed JSON{location}: {reason}");
         }
+        catch (ArgumentException)
+        {
+            // Only reachable through Parse(string): text read from a file or stdin never holds half a surrogate pair.
+            throw new InputFormatException("Input is not valid text: it contains half of a surrogate pair");
+        }
     }
 
     /// <summary>

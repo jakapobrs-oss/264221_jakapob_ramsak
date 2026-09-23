@@ -11,6 +11,12 @@ namespace DiscountModule.Cli.Input;
 /// </summary>
 internal sealed class JsonObjectReader
 {
+    /// <summary>
+    /// JSON allows an escape for half of a surrogate pair on its own, but a .NET string cannot hold it:
+    /// reading such a name or value throws. Found by the fuzz tests.
+    /// </summary>
+    private const string UnpairedSurrogate = "it contains an unpaired surrogate escape";
+
     private readonly Dictionary<string, JsonElement> properties = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> namesInDocumentOrder = [];
     private readonly List<string> expectedNames = [];
@@ -26,15 +32,21 @@ internal sealed class JsonObjectReader
 
         foreach (JsonProperty property in element.EnumerateObject())
         {
+            if (!TryGetText(() => property.Name, out string propertyName))
+            {
+                errors.Add($"{path}: a property name is not valid text ({UnpairedSurrogate})");
+                continue;
+            }
+
             // Names match in any case, so "unitPrice" and "UNITPRICE" count as one property given twice.
             // Silently keeping one of the two values could hide a typo in a price.
-            if (properties.TryAdd(property.Name, property.Value))
+            if (properties.TryAdd(propertyName, property.Value))
             {
-                namesInDocumentOrder.Add(property.Name);
+                namesInDocumentOrder.Add(propertyName);
             }
             else
             {
-                errors.Add($"{path}: property \"{property.Name}\" is given more than once");
+                errors.Add($"{path}: property \"{propertyName}\" is given more than once");
             }
         }
     }
@@ -68,7 +80,13 @@ internal sealed class JsonObjectReader
             return null;
         }
 
-        return value.GetString();
+        if (!TryGetText(value.GetString, out string? text))
+        {
+            Report(name, $"{Describe(value)} is not valid text ({UnpairedSurrogate})");
+            return null;
+        }
+
+        return text;
     }
 
     /// <summary>Reads a required number as a decimal.</summary>
@@ -250,6 +268,21 @@ internal sealed class JsonObjectReader
         exponent -= point < 0 ? 0 : mantissa.Length - point - 1;          // digits after the point
         exponent += withoutLeadingZeros.Length - significant.Length;     // trailing zeros removed
         return $"{(negative ? "-" : "")}{significant}e{exponent}";
+    }
+
+    /// <summary>Reads a name or a string value, or returns false when it holds an unpaired surrogate escape.</summary>
+    private static bool TryGetText<T>(Func<T> read, out T text)
+    {
+        try
+        {
+            text = read();
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            text = default!;
+            return false;
+        }
     }
 
     private bool TryGet(string name, bool required, out JsonElement value)
