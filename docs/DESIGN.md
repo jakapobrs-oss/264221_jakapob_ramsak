@@ -261,5 +261,5 @@ Core additions
   reversing the campaigns gives the same breakdown, every amount has 2 decimals, and the points used equal
   min(points, floor(20% of the price at that step))
 
-Mutation check (`tools/mutation-check.ps1`): 33 deliberate faults, one at a time, each must make at least one
+Mutation check (`tools/mutation-check.ps1`): 36 deliberate faults, one at a time, each must make at least one
 test fail.
