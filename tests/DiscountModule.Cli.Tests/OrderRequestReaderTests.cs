@@ -47,7 +47,9 @@ public class OrderRequestReaderTests
         var error = Assert.Throws<InputFormatException>(() =>
             OrderRequestReader.Parse("""{ "items": [ { "name": "Hat", "category": "Accessories", "unitPrice": "250" } ] }"""));
 
-        Assert.Contains("$.items[0].unitPrice", Assert.Single(error.Errors));
+        var message = Assert.Single(error.Errors);
+        Assert.Contains("$.items[0].unitPrice", message);
+        Assert.EndsWith("expected a number", message);
     }
 
     [Fact]
@@ -56,7 +58,18 @@ public class OrderRequestReaderTests
         var error = Assert.Throws<InputFormatException>(() =>
             OrderRequestReader.Parse("""{ "items": [ { "name": "Hat", "category": "Accessories", "price": 250 } ] }"""));
 
-        Assert.Contains("price", Assert.Single(error.Errors));
+        Assert.EndsWith("unknown property \"price\"", Assert.Single(error.Errors));
+    }
+
+    [Fact]
+    public void Rejects_fractional_quantity_as_not_a_whole_number()
+    {
+        var error = Assert.Throws<InputFormatException>(() =>
+            OrderRequestReader.Parse("""{ "items": [ { "name": "Hat", "category": "Accessories", "unitPrice": 250, "quantity": 1.5 } ] }"""));
+
+        var message = Assert.Single(error.Errors);
+        Assert.Contains("$.items[0].quantity", message);
+        Assert.EndsWith("expected a whole number", message);
     }
 
     [Fact]

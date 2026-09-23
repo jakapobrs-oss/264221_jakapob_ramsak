@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace DiscountModule.Cli.Input;
 
@@ -52,9 +53,43 @@ public static class OrderRequestReader
     {
         var location = ex.Path is null ? "" : $" at {ex.Path}";
         var line = ex.LineNumber is null ? "" : $" (line {ex.LineNumber + 1})";
-
-        // System.Text.Json messages are long and mention CLR type names; keep only the first sentence.
-        var reason = ex.Message.Split(". ", 2)[0].TrimEnd('.');
-        return $"Malformed JSON{location}{line}: {reason}";
+        return $"Malformed JSON{location}{line}: {Reason(ex.Message)}";
     }
+
+    /// <summary>
+    /// System.Text.Json messages are long and mention CLR type names. Translate the two common cases
+    /// into plain words and otherwise keep only the first sentence.
+    /// </summary>
+    private static string Reason(string message)
+    {
+        var unknownProperty = UnknownPropertyPattern.Match(message);
+        if (unknownProperty.Success)
+        {
+            return $"unknown property \"{unknownProperty.Groups["name"].Value}\"";
+        }
+
+        var wrongType = WrongTypePattern.Match(message);
+        if (wrongType.Success)
+        {
+            return $"expected {FriendlyTypeName(wrongType.Groups["type"].Value)}";
+        }
+
+        return message.Split(". ", 2)[0].TrimEnd('.');
+    }
+
+    private static readonly Regex UnknownPropertyPattern =
+        new("The JSON property '(?<name>[^']*)' could not be mapped", RegexOptions.CultureInvariant);
+
+    private static readonly Regex WrongTypePattern =
+        new(@"could not be converted to (?<type>\S+)", RegexOptions.CultureInvariant);
+
+    private static string FriendlyTypeName(string clrType) => clrType switch
+    {
+        _ when clrType.Contains("Decimal", StringComparison.Ordinal) => "a number",
+        _ when clrType.Contains("Int32", StringComparison.Ordinal) => "a whole number",
+        _ when clrType.Contains("String", StringComparison.Ordinal) => "text in quotes",
+        _ when clrType.Contains("List", StringComparison.Ordinal) => "an array",
+        _ when clrType.Contains("Dto", StringComparison.Ordinal) => "an object",
+        _ => "a different value type",
+    };
 }
