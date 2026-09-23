@@ -1,3 +1,5 @@
+using DiscountModule.Validation;
+
 using static System.FormattableString;
 
 namespace DiscountModule.Campaigns;
@@ -8,15 +10,11 @@ public sealed record PercentageCoupon(decimal Percentage) : Campaign
     public override CampaignCategory Category => CampaignCategory.Coupon;
     public override string Name => "Percentage discount";
 
-    public override IEnumerable<string> Validate()
-    {
-        if (Percentage <= 0 || Percentage > 100)
-        {
-            yield return Invariant($"percentage must be greater than 0 and at most 100 (got {Percentage})");
-        }
-    }
+    public override IEnumerable<string> Validate() => PercentageRules.Validate(Percentage);
 
-    // Dividing first keeps the intermediate value below the running total, so it cannot overflow.
+    // Percentage has at most 2 decimal places (validated), so Percentage / 100 has at most 4 and the
+    // product with the running total (2 places) is exact; Money.Round in the calculator is the only
+    // rounding. Dividing first also keeps the intermediate value below the running total (no overflow).
     public override decimal ComputeDiscount(DiscountContext context)
         => context.RunningTotal * (Percentage / 100m);
 

@@ -80,4 +80,55 @@ public class BreakdownTests
         // The coupon is applied first, but the caller's list keeps its own order.
         Assert.Equal(campaignsBefore, campaigns);
     }
+
+    [Fact]
+    public void Items_added_to_the_callers_list_after_it_was_read_are_not_priced()
+    {
+        // Stands in for another thread changing the list while Calculate runs: the second read sees
+        // an extra, never validated Clothing item. Only the validated T-Shirt may be priced.
+        ListChangedAfterFirstRead<CartItem> items = new(
+            [SampleCarts.TShirt],
+            [SampleCarts.TShirt, new CartItem("Added later", ItemCategory.Clothing, 1_000_000m)]);
+
+        DiscountResult result = DiscountCalculator.Calculate(
+            new Cart(items), [new CategoryPercentageOnTop(ItemCategory.Clothing, 10m)]);
+
+        Assert.Equal(350m, result.Subtotal);
+        Assert.Equal(315m, result.FinalPrice);
+    }
+
+    [Fact]
+    public void Campaigns_added_to_the_callers_list_after_it_was_read_are_not_applied()
+    {
+        // The second read would add a second coupon that never went through the one-per-category check.
+        ListChangedAfterFirstRead<Campaign> campaigns = new(
+            [new PercentageCoupon(10m)],
+            [new PercentageCoupon(10m), new FixedAmountCoupon(500m)]);
+
+        DiscountResult result = DiscountCalculator.Calculate(SampleCarts.TShirtAndHat(), campaigns);
+
+        Assert.Single(result.AppliedDiscounts);
+        Assert.Equal(540m, result.FinalPrice);
+    }
+
+    /// <summary>A caller's list whose content changes once it has been enumerated for the first time.</summary>
+    private sealed class ListChangedAfterFirstRead<T>(IReadOnlyList<T> before, IReadOnlyList<T> after) : IReadOnlyList<T>
+    {
+        private bool _enumerated;
+
+        private IReadOnlyList<T> Current => _enumerated ? after : before;
+
+        public int Count => Current.Count;
+
+        public T this[int index] => Current[index];
+
+        public IEnumerator<T> GetEnumerator()
+        {
+            IEnumerator<T> enumerator = Current.GetEnumerator();
+            _enumerated = true;
+            return enumerator;
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
 }

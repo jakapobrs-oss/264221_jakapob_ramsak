@@ -167,6 +167,16 @@ public class CampaignRuleTests
     }
 
     [Fact]
+    public void Just_under_half_a_satang_is_rounded_down()
+    {
+        // 0.49% of 1.00 = 0.0049, rounded to 0.00, so the price stays 1.00.
+        DiscountResult result = DiscountCalculator.Calculate(SampleCarts.SingleItem(1.00m), [new PercentageCoupon(0.49m)]);
+
+        Assert.Equal(0.00m, Assert.Single(result.AppliedDiscounts).DiscountAmount);
+        Assert.Equal(1.00m, result.FinalPrice);
+    }
+
+    [Fact]
     public void Without_campaigns_the_final_price_is_the_subtotal()
     {
         DiscountResult result = DiscountCalculator.Calculate(SampleCarts.TShirtAndHat(), []);
