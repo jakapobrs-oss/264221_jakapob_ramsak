@@ -118,8 +118,11 @@
 
   // ---- the order -----------------------------------------------------------------------------------
 
-  // An empty field is left out, so the API reports what is missing. A number the browser could not parse
-  // is sent as the text that was typed, so the API reports that too.
+  const JSON_NUMBER = /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/;
+
+  // An empty field is left out, so the API reports what is missing. A number is sent digit for digit where
+  // the browser can write a raw JSON number (350.0000000000000001 would otherwise be rounded to 350 before
+  // the API could reject it); anything else that was typed is sent as text, so the API reports that too.
   function valueOf(control) {
     const text = control.value.trim();
     if (text === "") {
@@ -130,8 +133,11 @@
       return text;
     }
 
-    const number = Number(text);
-    return Number.isFinite(number) ? number : text;
+    if (JSON_NUMBER.test(text)) {
+      return typeof JSON.rawJSON === "function" ? JSON.rawJSON(text) : Number(text);
+    }
+
+    return text;
   }
 
   function withValue(target, property, control) {
@@ -235,7 +241,6 @@
     clearTimeout(autoPriceTimer);
     const request = ++latestRequest;
     const button = $("price");
-    button.disabled = true;
     button.textContent = "Pricing…";
     setStatus("busy", "Pricing…");
     $("result").setAttribute("aria-busy", "true");
@@ -276,7 +281,6 @@
       }
     } finally {
       if (request === latestRequest) {
-        button.disabled = false;
         button.textContent = "Price the order";
         $("result").removeAttribute("aria-busy");
       }
@@ -295,15 +299,9 @@
     }
   }
 
+  // Shown as the API sent it, byte for byte: "567.00" stays "567.00" (the API indents its own answers).
   function showResponseJson(text) {
-    let pretty = text;
-    try {
-      pretty = JSON.stringify(JSON.parse(text), null, 2);
-    } catch {
-      // Not JSON: shown as it came.
-    }
-
-    $("response-json").textContent = pretty;
+    $("response-json").textContent = text;
     $("response-details").hidden = false;
   }
 

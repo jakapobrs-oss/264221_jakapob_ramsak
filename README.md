@@ -157,7 +157,8 @@ dotnet run --project src/DiscountModule.Api -- --urls http://localhost:5080    #
 - The page holds no pricing logic: it builds the JSON the endpoint accepts and renders what it returns. Where
   the browser lets `JSON.parse` see the source text of a number, amounts are kept as that text, so an amount
   near the limit of 1,000,000,000,000,000.00 THB shows every satang the API answered even though a JavaScript
-  number could not hold it.
+  number could not hold it. In the same browsers a typed number is sent digit for digit (`JSON.rawJSON`), so
+  350.0000000000000001 reaches the API and is rejected there instead of being rounded on the way.
 - Plain HTML, CSS and JavaScript, no framework or build step; it works offline and follows the system's light
   or dark scheme. Only `wwwroot` is served: any other path, a repository file included, answers 404 problem
   details like every unknown path.
