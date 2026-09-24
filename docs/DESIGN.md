@@ -7,10 +7,12 @@ This document is the binding specification for the implementation. The public ty
 
 The module takes (a) the items in a shopping cart and (b) a list of discount campaigns with their
 parameters, and returns the final price plus a step-by-step breakdown. Cart management, inventory
-and checkout are out of scope. Two front ends are only adapters around the module:
+and checkout are out of scope. Three front ends are only adapters around the module:
 
 - `src/DiscountModule.Cli` reads an order from a JSON file or stdin, calls the module and prints the result.
 - `src/DiscountModule.Api` exposes the same thing as `POST /api/discounts`.
+- `src/DiscountModule.Api/wwwroot` is a web page the API serves at `/`: it builds the same JSON in a browser
+  and shows the answer as the API returned it. It holds no pricing logic.
 
 Both use `src/DiscountModule.Json`, which reads a JSON order into domain types (section 7) and defines the
 JSON shape of a result (`PricedOrder`). The module itself knows nothing about JSON, consoles or HTTP.
@@ -275,6 +277,8 @@ HTTP API (`tests/DiscountModule.Api.Tests`, the app running in memory through `W
 - 413 for a body over the limit: over HTTP with a declared size, and by calling the endpoint directly for a
   body without a declared size (the in-memory server always sends one); a declared oversize body is not read
 - a UTF-8 byte order mark is accepted; other methods and paths answer with problem details
+- the web page at / (and /index.html) with its script and style, in the right media types; a path that is
+  not a file of the page, a repository file included, answers 404 problem details
 
 Core additions
 - extensibility: an example campaign that exists only in the tests is ordered, capped, validated and counted
@@ -284,5 +288,5 @@ Core additions
   min(points, floor(20% of the price at that step)); a category discount equals min(listed-price
   discount, the category's share of the price before it), rounded once
 
-Mutation check (`tools/mutation-check.ps1`): 39 deliberate faults, one at a time, each must make at least one
+Mutation check (`tools/mutation-check.ps1`): 40 deliberate faults, one at a time, each must make at least one
 test fail.

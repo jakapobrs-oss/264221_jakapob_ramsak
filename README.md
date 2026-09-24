@@ -1,17 +1,21 @@
 # Discount Module
 
 A small, well-tested .NET library that calculates the final price of an order by applying discount
-campaigns to the items in a shopping cart. Two thin front ends use it: a command line tool that reads
-an order from a JSON file, and a minimal HTTP API. Built for the Playtorium developer take-home assignment.
+campaigns to the items in a shopping cart. Three thin front ends use it: a command line tool that reads
+an order from a JSON file, a minimal HTTP API, and a web page served by that API for trying orders in a
+browser. Built for the Playtorium developer take-home assignment.
 
 - **Language / runtime:** C# 14 on .NET 10. `decimal` for money, records, no third-party packages in the
-  module, the JSON library, the CLI or the API (the tests use xUnit and Microsoft.AspNetCore.Mvc.Testing).
+  module, the JSON library, the CLI or the API (the tests use xUnit and Microsoft.AspNetCore.Mvc.Testing);
+  the web page is plain HTML, CSS and JavaScript with no framework.
 - **Tests:** `dotnet test` runs all four test projects (see [Tests and quality checks](#tests-and-quality-checks)).
 - **Design notes and assumptions:** [`docs/DESIGN.md`](docs/DESIGN.md), summarised below.
 
 ## Review in 5 minutes
 
-1. Run it: `dotnet test`, then `dotnet run --project src/DiscountModule.Cli -- examples/06-all-categories.json`.
+1. Run it: `dotnet test`, then `dotnet run --project src/DiscountModule.Cli -- examples/06-all-categories.json`;
+   or `dotnet run --project src/DiscountModule.Api -- --urls http://localhost:5080` and open <http://localhost:5080/>
+   to price the same orders in a browser.
 2. Read these files, in this order:
    - [`DiscountCalculator.cs`](src/DiscountModule/DiscountCalculator.cs): the whole algorithm in about 60
      lines. Copy the input, validate it, sort by category, apply each campaign, cap and round.
@@ -64,6 +68,7 @@ Requirements: [.NET SDK 10.0](https://dotnet.microsoft.com/download/dotnet/10.0)
 ```bash
 dotnet test                                                             # run all tests
 dotnet run --project src/DiscountModule.Cli -- examples/06-all-categories.json
+dotnet run --project src/DiscountModule.Api -- --urls http://localhost:5080   # then open http://localhost:5080/
 ```
 
 ```
@@ -127,6 +132,33 @@ is allowed, while invalid bytes or a UTF-16 byte order mark are refused.
 
 This is a demo front end, not a production service: it has no authentication, rate limiting or HTTPS
 configuration, which a real deployment would add in front of it.
+
+## Web page
+
+The API also serves a page at `/` (`src/DiscountModule.Api/wwwroot`) for trying orders without curl:
+
+```bash
+dotnet run --project src/DiscountModule.Api -- --urls http://localhost:5080    # then open http://localhost:5080/
+```
+
+- It opens with the combined example already priced. Six buttons load the five worked examples of the
+  assignment and that combined order; each one says which final price to expect.
+- Items are edited in a table. Each campaign category is a group of radio buttons with **None** as the first
+  choice, so the one-campaign-per-category rule is built into the form; typing a parameter selects its
+  campaign. Enter in any field prices the order.
+- The result panel shows the subtotal, the total discount, the final price and the points used, then one
+  row per applied campaign with the description the API wrote. Once the order is changed, the old result
+  is dimmed and the status says so until the order is priced again. **Request JSON** and **Response JSON**
+  show exactly what was sent and what came back.
+- 400, 413, 415 and 422 are shown with the API's title and every message in `errors`; a network failure or
+  a non-JSON answer is reported as such.
+- The page holds no pricing logic: it builds the JSON the endpoint accepts and renders what it returns. Where
+  the browser lets `JSON.parse` see the source text of a number, amounts are kept as that text, so an amount
+  near the limit of 1,000,000,000,000,000.00 THB shows every satang the API answered even though a JavaScript
+  number could not hold it.
+- Plain HTML, CSS and JavaScript, no framework or build step; it works offline and follows the system's light
+  or dark scheme. Only `wwwroot` is served: any other path, a repository file included, answers 404 problem
+  details like every unknown path.
 
 ## Input format
 
@@ -286,13 +318,13 @@ pwsh tools/mutation-check.ps1        # break the code on purpose and confirm the
 | `DiscountModule.Tests` | 113 | worked examples, campaign rules and caps, application order, validation, breakdown, culture; 500 random orders from a fixed seed checked against rules that must always hold; an example campaign added without changing the calculator |
 | `DiscountModule.Json.Tests` | 78 | every shape problem the parser reports, with its exact message and JSON path; strict UTF-8; the limit of 100 problems, also inside one object |
 | `DiscountModule.Cli.Tests` | 51 | exit codes 0 to 3, text and JSON output, Thai item names, long names, control characters, line separators and direction overrides, UTF-8 files and stdin, the problem limit, and 3,600 damaged orders generated from a fixed seed (fuzzing) that must never crash the CLI |
-| `DiscountModule.Api.Tests` | 38 | the HTTP endpoint running in memory: the same JSON as the CLI for every example order, 400, 413 at the exact byte limit, 415, 422, UTF-8 only, the problem limit, problem details |
+| `DiscountModule.Api.Tests` | 47 | the HTTP endpoint running in memory: the same JSON as the CLI for every example order, 400, 413 at the exact byte limit, 415, 422, UTF-8 only, the problem limit, problem details; the web page at `/` with its script and style, and paths that are not files of the page |
 
 - **Fuzzing found a real bug.** A JSON string holding an escaped lone surrogate, half of a UTF-16 pair,
   crashed the reader. It is now reported as an input error with its JSON path, and a test keeps it that way.
-- **Mutation check.** [`tools/mutation-check.ps1`](tools/mutation-check.ps1) breaks 39 rules one at a time
+- **Mutation check.** [`tools/mutation-check.ps1`](tools/mutation-check.ps1) breaks 40 rules one at a time
   (rounding mode, sort order, caps, validation, JSON checks, strict UTF-8, output escaping, API limits, the
-  problem limit) and runs every test after each change. All 39 are caught. It first runs the tests on the
+  problem limit, the web page) and runs every test after each change. All 40 are caught. It first runs the tests on the
   unchanged code and stops if any of them fails, since a failure could then not be blamed on a mutant.
 - **CI.** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) is a GitHub Actions workflow that builds the
   solution, checks its formatting with `dotnet format` and runs every test on each push to `main`, on pull
@@ -310,7 +342,7 @@ src/DiscountModule/              the module (class library, no dependencies)
   Money.cs, InputLimits.cs       satang rounding and formatting; supported magnitudes
 src/DiscountModule.Json/         JSON shared by both front ends: OrderRequestParser, JsonObjectReader, CampaignTypes, PricedOrder
 src/DiscountModule.Cli/          command line front end: text or JSON output, control-character escaping
-src/DiscountModule.Api/          HTTP front end: POST /api/discounts
+src/DiscountModule.Api/          HTTP front end: POST /api/discounts; wwwroot/ is the web page (index.html, app.css, app.js)
 tests/                           one test project per project in src/
 tools/mutation-check.ps1         the mutation check
 examples/                        runnable order files
@@ -336,8 +368,8 @@ docs/diagrams/                   the two diagrams used in this README
 - **Records with init-only properties** for input and output. The calculator never changes what it is
   given and returns a read-only breakdown.
 - **Thin front ends.** The CLI and the API share the JSON reader and the result shape in
-  `DiscountModule.Json`, and neither contains discount logic. The module itself knows nothing about JSON,
-  consoles or HTTP.
+  `DiscountModule.Json`, and neither contains discount logic; the web page only builds the JSON the API
+  accepts and shows what the API returns. The module itself knows nothing about JSON, consoles or HTTP.
 
 ## Trade-offs and next steps
 
@@ -372,7 +404,9 @@ With more time:
 ## Limitations
 
 - The text output aligns columns for Latin and Thai text; wide East Asian characters are not measured.
-  An item name wider than 60 columns is shortened there and ends in "…".
+  An item name wider than 60 columns is shortened there and ends in "…". The columns line up in Windows
+  Terminal and other modern terminals; the legacy Windows console host (conhost) draws Thai vowel and tone
+  marks in cells of their own, so a Thai name shifts its row there.
 - The CLI and the API read the whole order into memory (the API refuses bodies over 1 MiB), which suits a
   shopping cart but not a bulk import.
 - Amounts are THB only; there is no currency handling.
