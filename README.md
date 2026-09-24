@@ -158,7 +158,9 @@ dotnet run --project src/DiscountModule.Api -- --urls http://localhost:5080    #
   the browser lets `JSON.parse` see the source text of a number, amounts are kept as that text, so an amount
   near the limit of 1,000,000,000,000,000.00 THB shows every satang the API answered even though a JavaScript
   number could not hold it. In the same browsers a typed number is sent digit for digit (`JSON.rawJSON`), so
-  350.0000000000000001 reaches the API and is rejected there instead of being rounded on the way.
+  350.0000000000000001 reaches the API and is rejected there instead of being rounded on the way. Only the
+  number fields are sent as numbers, written the way JSON allows (`050` as 50, `.5` as 0.5); an item named
+  `501` keeps its name.
 - Plain HTML, CSS and JavaScript, no framework or build step; it works offline and follows the system's light
   or dark scheme. Only `wwwroot` is served: any other path, a repository file included, answers 404 problem
   details like every unknown path.

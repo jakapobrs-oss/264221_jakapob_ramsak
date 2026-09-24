@@ -118,26 +118,34 @@
 
   // ---- the order -----------------------------------------------------------------------------------
 
-  const JSON_NUMBER = /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/;
+  // A number field can hold "050", "00" or ".5", which JSON does not allow (JSON.rawJSON throws on them).
+  // Returns the same number written the way JSON does ("50", "0", "0.5"), or null for anything else.
+  function asJsonNumber(text) {
+    const match = /^(-?)(\d*)(\.\d+)?([eE][+-]?\d+)?$/.exec(text);
+    if (match === null || (match[2] === "" && match[3] === undefined)) {
+      return null;
+    }
 
-  // An empty field is left out, so the API reports what is missing. A number is sent digit for digit where
-  // the browser can write a raw JSON number (350.0000000000000001 would otherwise be rounded to 350 before
-  // the API could reject it); anything else that was typed is sent as text, so the API reports that too.
+    const [, sign, whole, fraction = "", exponent = ""] = match;
+    return `${sign}${whole.replace(/^0+(?=\d)/, "") || "0"}${fraction}${exponent}`;
+  }
+
+  // An empty field is left out, so the API reports what is missing. Only a number field is sent as a number:
+  // an item called "501" keeps its name. A number is sent digit for digit where the browser can write a raw
+  // JSON number (350.0000000000000001 would otherwise be rounded to 350 before the API could reject it);
+  // anything else that was typed is sent as text, so the API reports that too.
   function valueOf(control) {
     const text = control.value.trim();
     if (text === "") {
       return undefined;
     }
 
-    if (control.tagName === "SELECT") {
+    const number = control.type === "number" ? asJsonNumber(text) : null;
+    if (number === null) {
       return text;
     }
 
-    if (JSON_NUMBER.test(text)) {
-      return typeof JSON.rawJSON === "function" ? JSON.rawJSON(text) : Number(text);
-    }
-
-    return text;
+    return typeof JSON.rawJSON === "function" ? JSON.rawJSON(number) : Number(number);
   }
 
   function withValue(target, property, control) {
@@ -235,6 +243,12 @@
     return `${grouped}.${(fraction + "00").slice(0, 2)}`;
   }
 
+  // Nothing taken off prints as "0.00", not "−0.00", the same rule as the CLI's ResultPrinter.Subtracted.
+  function subtracted(amount) {
+    const money = formatMoney(amount);
+    return money === "0.00" ? money : `−${money}`;
+  }
+
   // ---- pricing -------------------------------------------------------------------------------------
 
   async function price() {
@@ -277,6 +291,7 @@
       }
     } catch (error) {
       if (request === latestRequest) {
+        hideResponseJson(); // nothing came back for this order
         renderFailure(`The API could not be reached (${error.message}). Is the server running?`);
       }
     } finally {
@@ -303,6 +318,11 @@
   function showResponseJson(text) {
     $("response-json").textContent = text;
     $("response-details").hidden = false;
+  }
+
+  function hideResponseJson() {
+    $("response-json").textContent = "";
+    $("response-details").hidden = true;
   }
 
   function renderPriced(result) {
@@ -338,7 +358,7 @@
       const parts = [
         ["before", formatMoney(step.priceBefore)],
         ["arrow", "→"],
-        ["minus", `−${formatMoney(step.discountAmount)}`],
+        ["minus", subtracted(step.discountAmount)],
         ["arrow", "→"],
         ["after", formatMoney(step.priceAfter)],
       ];
@@ -397,6 +417,7 @@
     $("problem-errors").replaceChildren();
     $("problem-errors").hidden = true;
     show("result-problem");
+    delete $("result").dataset.stale; // the failure is about the order on the form, not an old result
   }
 
   // ---- presets -------------------------------------------------------------------------------------
@@ -445,6 +466,12 @@
   // then ignored. Only an edit does this: tabbing through the fields changes nothing.
   for (const eventName of ["input", "change"]) {
     order.addEventListener(eventName, (event) => {
+      // A text or number field fires "change" once more when it is left, after its edits were handled by
+      // "input": the order is the same, so it is not marked changed or priced again.
+      if (eventName === "change" && event.target.matches('input[type="text"], input[type="number"]')) {
+        return;
+      }
+
       const radio = event.target.dataset?.for;
       if (radio) {
         $(radio).checked = true;
