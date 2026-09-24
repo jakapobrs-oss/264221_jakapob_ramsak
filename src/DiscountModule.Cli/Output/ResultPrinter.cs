@@ -14,6 +14,15 @@ public static class ResultPrinter
     private const int ColumnGap = 2;
     private const int AmountWidth = 12;
 
+    /// <summary>
+    /// Widest item name printed, in columns. Names are the only text in the breakdown taken from the input,
+    /// and every line is padded to the widest label: one 10,000-character name would widen them all.
+    /// </summary>
+    private const int MaxNameWidth = 60;
+
+    /// <summary>Ends a name that was shortened (U+2026 HORIZONTAL ELLIPSIS).</summary>
+    private const char Ellipsis = '…';
+
     public static void WriteText(Cart cart, DiscountResult result, TextWriter writer)
     {
         ArgumentNullException.ThrowIfNull(cart);
@@ -24,7 +33,10 @@ public static class ResultPrinter
         List<(string Label, string? Amount)> rows = [("Items", null)];
         foreach (CartItem item in cart.Items)
         {
-            rows.Add(($"  {item.Quantity} x {item.Name} ({item.Category}) @ {Money(item.UnitPrice)}", Money(item.LineTotal)));
+            // Escaped before it is shortened, so the width counts each escape and no raw control character gets
+            // through; the cut may still fall inside an escape.
+            string name = Shorten(ConsoleText.Escape(item.Name), MaxNameWidth);
+            rows.Add(($"  {item.Quantity} x {name} ({item.Category}) @ {Money(item.UnitPrice)}", Money(item.LineTotal)));
         }
 
         rows.Add(("Subtotal", Money(result.Subtotal)));
@@ -76,9 +88,39 @@ public static class ResultPrinter
     /// Number of terminal columns the text takes. Combining marks, such as Thai vowel and tone marks written
     /// above or below a consonant, take no column of their own. Wide East Asian characters are not handled.
     /// </summary>
-    private static int DisplayWidth(string text)
-        => text.EnumerateRunes().Count(rune => Rune.GetUnicodeCategory(rune)
-            is not (UnicodeCategory.NonSpacingMark or UnicodeCategory.EnclosingMark or UnicodeCategory.Format));
+    private static int DisplayWidth(string text) => text.EnumerateRunes().Count(TakesAColumn);
+
+    private static bool TakesAColumn(Rune rune)
+        => Rune.GetUnicodeCategory(rune) is not (UnicodeCategory.NonSpacingMark or UnicodeCategory.EnclosingMark or UnicodeCategory.Format);
+
+    /// <summary>
+    /// The text cut to at most <paramref name="maxWidth"/> columns, ending in an ellipsis when anything was cut.
+    /// Columns are counted like <see cref="DisplayWidth"/>, and the text is cut between whole characters: marks
+    /// written over the last letter kept stay with it, and a surrogate pair is never split.
+    /// </summary>
+    private static string Shorten(string text, int maxWidth)
+    {
+        if (DisplayWidth(text) <= maxWidth)
+        {
+            return text;
+        }
+
+        var kept = new StringBuilder();
+        int width = 0;
+        foreach (Rune rune in text.EnumerateRunes())
+        {
+            // The last column is kept for the ellipsis.
+            if (TakesAColumn(rune) && width == maxWidth - 1)
+            {
+                break;
+            }
+
+            kept.Append(rune.ToString());
+            width += TakesAColumn(rune) ? 1 : 0;
+        }
+
+        return kept.Append(Ellipsis).ToString();
+    }
 
     private static string PadToWidth(string text, int width)
         => text + new string(' ', Math.Max(0, width - DisplayWidth(text)));

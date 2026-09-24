@@ -293,6 +293,16 @@ public class OrderRequestParserTests
     }
 
     [Fact]
+    public void A_directory_given_as_the_order_file_is_reported_as_a_directory()
+    {
+        string path = Path.GetTempPath();
+
+        InputFormatException error = Assert.Throws<InputFormatException>(() => OrderRequestParser.ReadFile(path));
+
+        Assert.Equal($"Cannot read '{path}': it is a directory", Assert.Single(error.Errors));
+    }
+
+    [Fact]
     public void A_failing_input_stream_is_reported_as_an_input_error()
     {
         InputFormatException error = Assert.Throws<InputFormatException>(() => OrderRequestParser.Read(new FailingReader()));

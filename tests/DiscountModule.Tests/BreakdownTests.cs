@@ -55,6 +55,14 @@ public class BreakdownTests
     }
 
     [Fact]
+    public void A_single_point_is_described_in_the_singular()
+    {
+        DiscountResult result = DiscountCalculator.Calculate(SampleCarts.TShirtAndHat(), [new PointsOnTop(1)]);
+
+        Assert.Equal("1 point (cap 120 = 20% of 600.00 THB)", Assert.Single(result.AppliedDiscounts).Description);
+    }
+
+    [Fact]
     public void Every_amount_in_the_result_carries_exactly_two_decimal_places()
     {
         // Prices given as whole numbers (350, 250) and a 10% step (60.0) must still come out as satang.

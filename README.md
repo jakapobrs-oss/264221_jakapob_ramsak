@@ -27,7 +27,7 @@ an order from a JSON file, and a minimal HTTP API. Built for the Playtorium deve
 | Decision | Why | See |
 |----------|-----|-----|
 | Two campaigns of one category are rejected, not resolved | a caller passing both has a bug, and picking one silently would hide it | A7 |
-| Points and the seasonal campaign use the running total; the category percentage uses listed prices | follows the application order and matches the examples | A1, A3 |
+| Points and the seasonal campaign use the running total; the category percentage uses listed prices, capped at the category's share of the running total | follows the application order, and a category discount never lowers the price of another category | A1, A3 |
 | Money is `decimal`, percentages have at most 2 decimals, inputs are bounded | every calculation is exact, so each discount is rounded exactly once | A8, A11 |
 | Everything is validated before anything is calculated, and every problem is collected | invalid input never produces a price | [Validation](#validation-and-resilience) |
 | The module knows nothing about JSON or HTTP | the CLI and the API are thin adapters over the same code | [Design notes](#design-notes) |
@@ -38,7 +38,7 @@ an order from a JSON file, and a minimal HTTP API. Built for the Playtorium deve
 |----------|----------|------|------------|
 | Fixed amount | Coupon | Subtract a fixed amount from the total | `amount` |
 | Percentage discount | Coupon | Subtract a percentage of the total | `percentage` |
-| Percentage discount by item category | On Top | Subtract a percentage of the price of every item in one category | `category`, `percentage` |
+| Percentage discount by item category | On Top | Subtract a percentage of the listed price of every item in one category, at most that category's share of the price left | `category`, `percentage` |
 | Discount by points | On Top | 1 point = 1 THB, capped at 20% of the total (fixed rule) | `points` |
 | Special campaign | Seasonal | For every X THB of the total, subtract Y THB | `everyAmount`, `discountAmount` |
 
@@ -48,8 +48,9 @@ Rules from the assignment:
    discount together with points, is rejected as a usage error.
 2. Campaigns are applied in the order **Coupon → On Top → Seasonal**, whatever order they are given in.
    Each discount is capped at the price left by the campaigns before it. Points and the seasonal
-   campaign are also calculated from that remaining price; the category discount is a percentage of
-   the listed prices of that category (assumption A3).
+   campaign are also calculated from that remaining price. The category discount is a percentage of
+   the listed prices of that category, capped at the category's share of the remaining price, so it
+   never lowers the price of items in other categories (assumption A3).
 
 The module returns the final price together with a step-by-step breakdown (price before, discount,
 price after for every campaign) and the number of points actually used, so a caller can deduct them.
@@ -168,6 +169,7 @@ All files in [`examples/`](examples/) are runnable:
 | `06-all-categories.json` | one campaign of each category, listed in reverse order on purpose (the result is the same) |
 | `07-points-capped-after-coupon.json` | the 20% points cap taken from the price after the coupon (558.00, 149 points used) |
 | `08-coupon-then-category.json` | the category discount taken from listed prices after a coupon (170.00) |
+| `09-category-capped-after-coupon.json` | the category discount capped at the category's share of the price left after a coupon (500.00) |
 | `invalid-two-coupons.json` | the one-campaign-per-category rule (exit code 1) |
 | `invalid-values.json` | six broken business rules reported together (exit code 1) |
 | `invalid-format.json` | five problems with the file's shape reported together (exit code 2) |
@@ -228,12 +230,12 @@ The assignment leaves a few points open. These are the readings used, with the r
 |---|------------|
 | A1 | **"Total price" means the running total.** The 20% points cap and the seasonal "every X THB" use the price left by the campaigns before them, not the original subtotal. |
 | A2 | **Points are whole units.** 1 point = 1 THB, so the cap is rounded *down* to a whole baht and `PointsUsed` is always an integer (running total 762.50 → cap 152). |
-| A3 | **The category percentage uses the listed item prices**, even after a coupon; the result is still capped at the running total. |
+| A3 | **The category percentage uses the listed item prices, capped at the category's share of the running total.** That share is the running total spread over the items in proportion to their listed prices. Without the cap, a coupon plus a category discount could take more than the category's items are worth and lower the price of other categories (50% off the cart, then 80% off Clothing). Without a coupon the cap never applies. |
 | A4 | **The category campaign's "Amount" is a percentage.** The parameter table says "Amount", the example says "15% Off on Clothing"; the example wins. |
 | A5 | **Seasonal uses floor division** (830 THB at "40 for every 300" → 2 × 40), matching the example. `discountAmount` may not exceed `everyAmount`. |
 | A6 | **The final price never goes below zero.** A 1,000 THB coupon on a 600 THB cart gives 0. |
 | A7 | **One campaign per category is enforced, not resolved.** Two campaigns of the same category are rejected with a clear message rather than silently choosing one. |
-| A8 | **Money is `decimal` at satang precision.** Prices and amounts may have at most 2 decimals, and so may percentages (12.5 or 33.33, not 33.333). Together with the limits in A11 this keeps every calculation exact, so each discount is rounded only once: half away from zero, to 2 decimals. |
+| A8 | **Money is `decimal` at satang precision.** Prices and amounts may have at most 2 decimals, and so may percentages (12.5 or 33.33, not 33.333). Together with the limits in A11 this keeps every calculation exact, so each discount is rounded only once: half away from zero, to 2 decimals. The category cap (A3) needs a division; it is worked out exactly in satang with 128-bit integers and rounded once as well. |
 | A9 | **Items carry a quantity** (`unitPrice × quantity`). |
 | A10 | **A free item (price 0) is allowed; an empty cart is not.** |
 | A11 | **Supported magnitudes:** prices and amounts up to 1,000,000,000 THB, quantities up to 1,000,000 per line, and an order subtotal up to 1,000,000,000,000,000 THB (one line at the maximum price and quantity). Larger values are rejected; within these bounds no calculation can overflow or lose a digit. |
@@ -259,7 +261,9 @@ The front ends check the JSON in two passes. They first report the problems with
 (CLI exit code 2, HTTP 400). Once the shape is right, the module reports every broken business rule
 (exit code 1, HTTP 422). A JSON syntax error stops the first pass at that error, since nothing after it
 can be read reliably. The CLI prints text taken from the input, such as an item name, with control
-characters escaped (`\n`, `\t`), so each item and each problem stays on its own line.
+characters escaped (`\n`, `\t`), so each item and each problem stays on its own line. Characters that
+change the direction of the text, such as U+202E, are escaped too, so a name cannot make a line read in
+another order.
 
 The module itself reports every broken rule. The front ends list at most 100 of them, followed by a line
 saying how many were left out. The JSON reader stops reading after 100 shape problems and ends the list
@@ -276,17 +280,20 @@ pwsh tools/mutation-check.ps1        # break the code on purpose and confirm the
 
 | Project | Tests | What they cover |
 |---------|-------|-----------------|
-| `DiscountModule.Tests` | 107 | worked examples, campaign rules and caps, application order, validation, breakdown, culture; 500 random orders from a fixed seed checked against rules that must always hold; an example campaign added without changing the calculator |
-| `DiscountModule.Json.Tests` | 77 | every shape problem the parser reports, with its exact message and JSON path; strict UTF-8; the limit of 100 problems, also inside one object |
-| `DiscountModule.Cli.Tests` | 43 | exit codes 0 to 3, text and JSON output, Thai item names, control characters, UTF-8 files and stdin, the problem limit, and 3,300 damaged orders generated from a fixed seed (fuzzing) that must never crash the CLI |
-| `DiscountModule.Api.Tests` | 37 | the HTTP endpoint running in memory: the same JSON as the CLI for every example order, 400, 413 at the exact byte limit, 415, 422, UTF-8 only, the problem limit, problem details |
+| `DiscountModule.Tests` | 113 | worked examples, campaign rules and caps, application order, validation, breakdown, culture; 500 random orders from a fixed seed checked against rules that must always hold; an example campaign added without changing the calculator |
+| `DiscountModule.Json.Tests` | 78 | every shape problem the parser reports, with its exact message and JSON path; strict UTF-8; the limit of 100 problems, also inside one object |
+| `DiscountModule.Cli.Tests` | 50 | exit codes 0 to 3, text and JSON output, Thai item names, long names, control characters and direction overrides, UTF-8 files and stdin, the problem limit, and 3,600 damaged orders generated from a fixed seed (fuzzing) that must never crash the CLI |
+| `DiscountModule.Api.Tests` | 38 | the HTTP endpoint running in memory: the same JSON as the CLI for every example order, 400, 413 at the exact byte limit, 415, 422, UTF-8 only, the problem limit, problem details |
 
 - **Fuzzing found a real bug.** A JSON string holding an escaped lone surrogate, half of a UTF-16 pair,
   crashed the reader. It is now reported as an input error with its JSON path, and a test keeps it that way.
-- **Mutation check.** [`tools/mutation-check.ps1`](tools/mutation-check.ps1) breaks 33 rules one at a time
+- **Mutation check.** [`tools/mutation-check.ps1`](tools/mutation-check.ps1) breaks 38 rules one at a time
   (rounding mode, sort order, caps, validation, JSON checks, strict UTF-8, output escaping, API limits, the
-  problem limit) and runs every test after each change. All 33 are caught.
-- **CI.** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) builds and runs the tests with GitHub Actions.
+  problem limit) and runs every test after each change. All 38 are caught. It first runs the tests on the
+  unchanged code and stops if any of them fails, since a failure could then not be blamed on a mutant.
+- **CI.** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) is a GitHub Actions workflow that builds the
+  solution, checks its formatting with `dotnet format` and runs every test on each push to `main`, on pull
+  requests and on demand.
 
 ## Project structure
 
@@ -336,6 +343,10 @@ Choices made on purpose:
 - **Reject, don't resolve.** Two campaigns of one category are a usage error. A shop that wants "the best
   coupon wins" would drop that check and add a selection step to the calculator that prices each
   candidate and keeps the cheapest result. The campaign records themselves would not change.
+- **Listed prices with a cap, not full pro-rata.** The category percentage is taken from listed prices and
+  only capped at the category's share of what is left (A3). The other reading takes the percentage of that
+  share itself: `examples/08` would then give 171.00 instead of 170.00. Switching would only change
+  `CategoryPercentageOnTop`.
 - **Exceptions for invalid input.** `DiscountValidationException` carries every problem. A team that prefers
   a result type could switch: `Calculate` would return it, and the two front ends that catch the
   exception today would check the result instead.
@@ -358,6 +369,7 @@ With more time:
 ## Limitations
 
 - The text output aligns columns for Latin and Thai text; wide East Asian characters are not measured.
+  An item name wider than 60 columns is shortened there and ends in "…".
 - The CLI and the API read the whole order into memory (the API refuses bodies over 1 MiB), which suits a
   shopping cart but not a bulk import.
 - Amounts are THB only; there is no currency handling.

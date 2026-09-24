@@ -26,7 +26,7 @@ public sealed record PointsOnTop(int Points) : Campaign
         => Math.Min(Points, MaxPointsFor(context.RunningTotal));
 
     public override string Describe(DiscountContext context)
-        => Invariant($"{Points} points (cap {MaxPointsFor(context.RunningTotal):0} = ")
+        => Invariant($"{Points} {(Points == 1 ? "point" : "points")} (cap {MaxPointsFor(context.RunningTotal):0} = ")
             + Invariant($"{MaxShareOfTotal * 100:0}% of {Money.Format(context.RunningTotal)} THB)");
 
     // A2: points are whole units, so the cap is rounded down to a whole baht (762.50 -> 152).

@@ -33,6 +33,7 @@ public class CliAppTests
     [InlineData("06-all-categories.json", "567.00")]
     [InlineData("07-points-capped-after-coupon.json", "558.00")]
     [InlineData("08-coupon-then-category.json", "170.00")]
+    [InlineData("09-category-capped-after-coupon.json", "500.00")]
     public void Example_files_produce_the_expected_final_price(string file, string expectedFinalPrice)
     {
         var (exitCode, stdout, stderr) = Run(Example(file), "--json");
@@ -97,6 +98,37 @@ public class CliAppTests
         => line.Count(character => CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark);
 
     [Fact]
+    public void A_very_long_item_name_is_shortened_instead_of_widening_every_line()
+    {
+        string order = $$"""{ "items": [ { "name": "{{new string('A', 10_000)}}", "category": "Clothing", "unitPrice": 350 } ] }""";
+
+        var (exitCode, stdout, _) = RunWithInput(order, "-");
+        string[] lines = Lines(stdout);
+
+        Assert.Equal(CliApp.ExitSuccess, exitCode);
+        Assert.Matches(@"^  1 x A{59}… \(Clothing\) @ 350\.00 +350\.00$", lines[1]);
+        Assert.All(lines, line => Assert.True(line.Length <= 100, $"a line has {line.Length} characters"));
+    }
+
+    [Fact]
+    public void A_long_Thai_name_is_shortened_by_columns_and_keeps_the_marks_of_its_last_letter()
+    {
+        // "เสื้อ" is 5 characters but 3 columns, so 30 of them are 90 columns: 59 are kept, then the ellipsis.
+        string name = string.Concat(Enumerable.Repeat("เสื้อ", 30));
+        string order = $$"""{ "items": [ { "name": "{{name}}", "category": "Clothing", "unitPrice": 350 } ] }""";
+
+        var (exitCode, stdout, _) = RunWithInput(order, "-");
+        string line = Lines(stdout)[1];
+        string printedName = line["  1 x ".Length..line.IndexOf(" (Clothing)", StringComparison.Ordinal)];
+
+        Assert.Equal(CliApp.ExitSuccess, exitCode);
+        Assert.EndsWith("…", printedName);
+        Assert.Equal(60, ScreenColumns(printedName));
+        Assert.StartsWith(printedName[..^1], name, StringComparison.Ordinal); // the tone mark of the last letter kept is still there
+        Assert.EndsWith("เสื้…", printedName, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Control_characters_in_an_item_name_are_escaped_so_every_line_stays_whole()
     {
         // The JSON string "Line\nbreak" holds a real newline, and ESC could recolour the terminal.
@@ -124,6 +156,35 @@ public class CliAppTests
         Assert.Equal(
             ["Invalid order (1):", @"  - Item #1 'Bad\nname': unit price must not be negative (got -1)"],
             Lines(stderr));
+    }
+
+    [Fact]
+    public void Direction_overrides_in_an_item_name_are_escaped_so_they_cannot_reorder_the_line()
+    {
+        // "Trojan Source": the right-to-left override U+202E would show the rest of the line reversed, so a
+        // name could make the amount column read differently on screen.
+        const char RightToLeftOverride = (char)0x202E;
+        string name = JsonSerializer.Serialize("Coat" + RightToLeftOverride + "00.01");
+        string order = $$"""{ "items": [ { "name": {{name}}, "category": "Clothing", "unitPrice": 350 } ] }""";
+
+        var (exitCode, stdout, _) = RunWithInput(order, "-");
+
+        Assert.Equal(CliApp.ExitSuccess, exitCode);
+        Assert.DoesNotContain(RightToLeftOverride, stdout);
+        Assert.StartsWith("  1 x Coat" + @"\" + "u202e00.01 (Clothing) @ 350.00", Lines(stdout)[1]);
+    }
+
+    [Fact]
+    public void Zero_width_characters_of_real_text_are_printed_as_they_are()
+    {
+        // A zero width space marks a word break in Thai; a zero width joiner builds an emoji sequence.
+        string text = "เสื้อ" + (char)0x200B + "ยืด " + char.ConvertFromUtf32(0x1F469) + (char)0x200D + char.ConvertFromUtf32(0x1F4BB);
+        string order = $$"""{ "items": [ { "name": {{JsonSerializer.Serialize(text)}}, "category": "Clothing", "unitPrice": 350 } ] }""";
+
+        var (exitCode, stdout, _) = RunWithInput(order, "-");
+
+        Assert.Equal(CliApp.ExitSuccess, exitCode);
+        Assert.StartsWith($"  1 x {text} (Clothing) @ 350.00", Lines(stdout)[1], StringComparison.Ordinal);
     }
 
     [Fact]
@@ -269,6 +330,15 @@ public class CliAppTests
 
         Assert.Equal(CliApp.ExitInputError, exitCode);
         Assert.Contains("does-not-exist.json", stderr);
+    }
+
+    [Fact]
+    public void A_directory_given_as_the_order_file_exits_with_2_and_says_it_is_a_directory()
+    {
+        var (exitCode, _, stderr) = Run(AppContext.BaseDirectory);
+
+        Assert.Equal(CliApp.ExitInputError, exitCode);
+        Assert.Contains("it is a directory", stderr);
     }
 
     [Fact]

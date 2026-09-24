@@ -7,6 +7,9 @@
     "banker's rounding"), runs every test, then restores the file byte for byte. A mutant is "caught"
     when at least one test fails. A mutant that survives points at a rule no test really checks.
 
+    The tests run once on the unchanged code first. If any of them fails there, a failure could not be
+    blamed on a mutant, so the check stops with exit code 2.
+
     Runs on Windows PowerShell 5.1 and PowerShell 7 (pwsh) on any OS. Needs a clean git working tree.
 
 .EXAMPLE
@@ -26,6 +29,15 @@ if (git status --porcelain) {
     exit 2
 }
 
+# A mutant counts as caught only when a test fails because of it, so every test must pass without one.
+Write-Output 'Running the tests on the unchanged code...'
+$baseline = dotnet test -c $Configuration --nologo -v q -p:TreatWarningsAsErrors=false 2>&1 | Out-String
+if ($LASTEXITCODE -ne 0 -or $baseline -match 'Failed!|error CS\d+') {
+    Write-Output $baseline
+    Write-Error 'The tests fail on the unchanged code, so no mutant can be judged. Make them pass first.'
+    exit 2
+}
+
 $mutants = @(
     @{ Name = 'rounding: half away from zero -> banker''s'; File = 'src/DiscountModule/Money.cs'; Find = 'MidpointRounding.AwayFromZero'; Replace = 'MidpointRounding.ToEven' },
     @{ Name = 'order: campaigns not sorted by category'; File = 'src/DiscountModule/DiscountCalculator.cs'; Find = 'campaigns.OrderBy(campaign => campaign.Category)'; Replace = 'campaigns.AsEnumerable()' },
@@ -33,7 +45,10 @@ $mutants = @(
     @{ Name = 'seasonal counts partial steps'; File = 'src/DiscountModule/Campaigns/SeasonalCampaign.cs'; Find = 'Math.Floor(runningTotal / EveryAmount)'; Replace = '(runningTotal / EveryAmount)' },
     @{ Name = 'discount not capped at the running total'; File = 'src/DiscountModule/DiscountCalculator.cs'; Find = 'Math.Clamp(campaign.ComputeDiscount(context), 0m, runningTotal)'; Replace = 'campaign.ComputeDiscount(context)' },
     @{ Name = 'two campaigns of one category allowed'; File = 'src/DiscountModule/Validation/CampaignListValidator.cs'; Find = '.Where(group => group.Count() > 1)'; Replace = '.Where(group => group.Count() > 2)' },
-    @{ Name = 'category % taken from the running total'; File = 'src/DiscountModule/Campaigns/CategoryPercentageOnTop.cs'; Find = 'CategoryTotal(context.Cart) * (Percentage / 100m)'; Replace = 'context.RunningTotal * (Percentage / 100m)' },
+    @{ Name = 'category % taken from the running total'; File = 'src/DiscountModule/Campaigns/CategoryPercentageOnTop.cs'; Find = 'Math.Min(ListedPriceDiscount(context.Cart), ShareLeft(context))'; Replace = 'Math.Min(context.RunningTotal * (Percentage / 100m), ShareLeft(context))' },
+    @{ Name = 'category discount not capped at the category share'; File = 'src/DiscountModule/Campaigns/CategoryPercentageOnTop.cs'; Find = 'Math.Min(ListedPriceDiscount(context.Cart), ShareLeft(context))'; Replace = 'ListedPriceDiscount(context.Cart)' },
+    @{ Name = 'category share rounded down'; File = 'src/DiscountModule/Money.cs'; Find = '((2 * numerator) + denominator) / (2 * denominator)'; Replace = 'numerator / denominator' },
+    @{ Name = 'category share divided in decimal'; File = 'src/DiscountModule/Campaigns/CategoryPercentageOnTop.cs'; Find = 'Money.Share(context.RunningTotal, CategoryTotal(context.Cart), subtotal)'; Replace = 'Money.Round(CategoryTotal(context.Cart) * (context.RunningTotal / subtotal))' },
     @{ Name = 'percentage above 100 accepted'; File = 'src/DiscountModule/Validation/PercentageRules.cs'; Find = 'percentage > 100'; Replace = 'percentage > 1000' },
     @{ Name = 'negative price accepted'; File = 'src/DiscountModule/Validation/AmountRules.cs'; Find = 'if (value < 0)'; Replace = 'if (value < -1)' },
     @{ Name = 'input not copied before validation'; File = 'src/DiscountModule/DiscountCalculator.cs'; Find = 'cart with { Items = cart.Items.ToArray() }'; Replace = 'cart' },
@@ -43,8 +58,10 @@ $mutants = @(
     @{ Name = 'JSON: lost digits not reported'; File = 'src/DiscountModule.Json/JsonObjectReader.cs'; Find = 'if (writtenValue != CanonicalNumber(number.ToString(CultureInfo.InvariantCulture)))'; Replace = 'if (writtenValue is null && number == -1)' },
     @{ Name = 'JSON: names match case-sensitively'; File = 'src/DiscountModule.Json/JsonObjectReader.cs'; Find = 'string.Equals(candidate, text, StringComparison.OrdinalIgnoreCase)'; Replace = 'string.Equals(candidate, text, StringComparison.Ordinal)' },
     @{ Name = 'JSON: half surrogate pair crashes the reader'; File = 'src/DiscountModule.Json/JsonObjectReader.cs'; Find = 'catch (InvalidOperationException)'; Replace = 'catch (FormatException)' },
-    @{ Name = 'CLI: control characters printed as they are'; File = 'src/DiscountModule.Cli/Output/ConsoleText.cs'; Find = 'if (!text.Any(char.IsControl))'; Replace = 'if (text.Length >= 0)' },
+    @{ Name = 'CLI: control characters printed as they are'; File = 'src/DiscountModule.Cli/Output/ConsoleText.cs'; Find = 'if (!text.Any(NeedsEscape))'; Replace = 'if (text.Length >= 0)' },
+    @{ Name = 'CLI: direction overrides printed as they are'; File = 'src/DiscountModule.Cli/Output/ConsoleText.cs'; Find = 'char.IsControl(character) || IsBidirectionalControl(character)'; Replace = 'char.IsControl(character)' },
     @{ Name = 'CLI: Thai marks counted as columns'; File = 'src/DiscountModule.Cli/Output/ResultPrinter.cs'; Find = 'is not (UnicodeCategory.NonSpacingMark or UnicodeCategory.EnclosingMark or UnicodeCategory.Format)'; Replace = 'is not UnicodeCategory.Control' },
+    @{ Name = 'CLI: long item names not shortened'; File = 'src/DiscountModule.Cli/Output/ResultPrinter.cs'; Find = 'string name = Shorten(ConsoleText.Escape(item.Name), MaxNameWidth);'; Replace = 'string name = item.Name;' },
     @{ Name = 'CLI: -- does not end the options'; File = 'src/DiscountModule.Cli/CliApp.cs'; Find = 'optionsEnded = true;'; Replace = 'optionsEnded = false;' },
     @{ Name = 'API: body size not checked while reading'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'if (body.Length + read > MaxOrderBytes)'; Replace = 'if (body.Length < 0)' },
     @{ Name = 'API: declared size not checked'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'if (request.ContentLength > MaxOrderBytes)'; Replace = 'if (request.ContentLength < 0)' },

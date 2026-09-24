@@ -1,0 +1,10 @@
+{
+  "items": [
+    { "name": "Jacket", "category": "Clothing", "unitPrice": 1000, "quantity": 1 },
+    { "name": "Phone", "category": "Electronics", "unitPrice": 1000, "quantity": 1 }
+  ],
+  "campaigns": [
+    { "type": "Percentage", "percentage": 50 },
+    { "type": "CategoryPercentage", "category": "Clothing", "percentage": 80 }
+  ]
+}
