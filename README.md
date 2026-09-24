@@ -280,10 +280,10 @@ pwsh tools/mutation-check.ps1        # break the code on purpose and confirm the
 
 | Project | Tests | What they cover |
 |---------|-------|-----------------|
-| `DiscountModule.Tests` | 107 | worked examples, campaign rules and caps, application order, validation, breakdown, culture; 500 random orders from a fixed seed checked against rules that must always hold; an example campaign added without changing the calculator |
-| `DiscountModule.Json.Tests` | 77 | every shape problem the parser reports, with its exact message and JSON path; strict UTF-8; the limit of 100 problems, also inside one object |
-| `DiscountModule.Cli.Tests` | 43 | exit codes 0 to 3, text and JSON output, Thai item names, control characters, UTF-8 files and stdin, the problem limit, and 3,300 damaged orders generated from a fixed seed (fuzzing) that must never crash the CLI |
-| `DiscountModule.Api.Tests` | 37 | the HTTP endpoint running in memory: the same JSON as the CLI for every example order, 400, 413 at the exact byte limit, 415, 422, UTF-8 only, the problem limit, problem details |
+| `DiscountModule.Tests` | 113 | worked examples, campaign rules and caps, application order, validation, breakdown, culture; 500 random orders from a fixed seed checked against rules that must always hold; an example campaign added without changing the calculator |
+| `DiscountModule.Json.Tests` | 78 | every shape problem the parser reports, with its exact message and JSON path; strict UTF-8; the limit of 100 problems, also inside one object |
+| `DiscountModule.Cli.Tests` | 50 | exit codes 0 to 3, text and JSON output, Thai item names, long names, control characters and direction overrides, UTF-8 files and stdin, the problem limit, and 3,600 damaged orders generated from a fixed seed (fuzzing) that must never crash the CLI |
+| `DiscountModule.Api.Tests` | 38 | the HTTP endpoint running in memory: the same JSON as the CLI for every example order, 400, 413 at the exact byte limit, 415, 422, UTF-8 only, the problem limit, problem details |
 
 - **Fuzzing found a real bug.** A JSON string holding an escaped lone surrogate, half of a UTF-16 pair,
   crashed the reader. It is now reported as an input error with its JSON path, and a test keeps it that way.
