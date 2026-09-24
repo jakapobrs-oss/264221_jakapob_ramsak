@@ -201,11 +201,13 @@
   // marking update at once, and the order is priced again a moment later.
   const AUTO_PRICE_DELAY_MS = 600;
   let autoPriceTimer = null;
+  let latestRequest = 0;
 
   function orderChanged() {
     updateRequestJson();
     markStale();
     markEdited();
+    latestRequest++; // an answer still on its way belongs to the old order and is dropped when it arrives
     clearTimeout(autoPriceTimer);
     autoPriceTimer = setTimeout(price, AUTO_PRICE_DELAY_MS);
   }
@@ -228,8 +230,6 @@
   }
 
   // ---- pricing -------------------------------------------------------------------------------------
-
-  let latestRequest = 0;
 
   async function price() {
     clearTimeout(autoPriceTimer);
@@ -418,8 +418,7 @@
       }
     }
 
-    updateRequestJson();
-    markStale();
+    orderChanged(); // an example is an order like any other: it is priced a moment later
     $("preset-note").textContent = preset.note;
     $("preset-note").dataset.preset = "true";
     for (const button of document.querySelectorAll(".preset-buttons button")) {
@@ -444,16 +443,17 @@
   $("price").addEventListener("click", price);
 
   const order = document.querySelector(".order");
-  // Typing a parameter selects the campaign it belongs to, so a value is never entered and then ignored.
-  order.addEventListener("focusin", (event) => {
-    const radio = event.target.dataset?.for;
-    if (radio) {
-      $(radio).checked = true;
-      updateRequestJson();
-    }
-  });
+  // Typing or choosing a parameter selects the campaign it belongs to, so a value is never entered and
+  // then ignored. Only an edit does this: tabbing through the fields changes nothing.
   for (const eventName of ["input", "change"]) {
-    order.addEventListener(eventName, orderChanged);
+    order.addEventListener(eventName, (event) => {
+      const radio = event.target.dataset?.for;
+      if (radio) {
+        $(radio).checked = true;
+      }
+
+      orderChanged();
+    });
   }
   order.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && event.target.matches("input")) {
