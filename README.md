@@ -143,9 +143,9 @@ dotnet run --project src/DiscountModule.Api -- --urls http://localhost:5080    #
 
 - It opens with the combined example already priced. Six buttons load the five worked examples of the
   assignment and that combined order; each button shows the final price to expect.
-- Items are edited in a table. Each campaign category is a group of radio buttons with **None** as the first
-  choice, so the one-campaign-per-category rule is built into the form; typing a parameter selects its
-  campaign. The order is priced again a moment after any change; Enter in any field, or the button, prices
+- Items are edited in a table. Each campaign category is a row of coupon cards with **None** as the first
+  card, so the one-campaign-per-category rule is built into the form: pick a card and set its numbers on
+  the card itself; typing a number selects its card. The order is priced again a moment after any change; Enter in any field, or the button, prices
   it at once.
 - The result panel shows the final price, the subtotal, the total discount and the points used, then one
   row per applied campaign, receipt style: the price before, the discount and the price after, with the

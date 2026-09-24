@@ -364,24 +364,24 @@ th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
   .items td:last-child { grid-column: 1 / -1; }
   .items td:last-child::before { display: none; }
   .items input[type="number"], .items input[type="text"], .items select { width: 100%; min-width: 0; }
-  .choice > label:not(.param) { flex: 1 1 8rem; min-width: 0; }
 }
 
 /* ---- campaigns ---------------------------------------------------------------------------------- */
 
 fieldset.campaign {
+  --category: var(--muted);
+  --category-bg: var(--surface-2);
   border: 1px solid var(--line);
-  border-left: 3px solid var(--muted);
   border-radius: 10px;
-  padding: 0.35rem 0.9rem 0.6rem;
+  padding: 0.35rem 0.9rem 0.8rem;
   margin: 0;
   display: grid;
-  gap: 0.25rem;
+  gap: 0.35rem;
 }
 
-fieldset.coupon { border-left-color: var(--coupon); }
-fieldset.ontop { border-left-color: var(--ontop); }
-fieldset.seasonal { border-left-color: var(--seasonal); }
+fieldset.coupon { --category: var(--coupon); --category-bg: var(--coupon-bg); }
+fieldset.ontop { --category: var(--ontop); --category-bg: var(--ontop-bg); }
+fieldset.seasonal { --category: var(--seasonal); --category-bg: var(--seasonal-bg); }
 
 legend {
   font-weight: 650;
@@ -393,38 +393,63 @@ legend {
 
 legend .hint { margin-left: 0.15rem; }
 
+/* Each option is a coupon: pick it like in a shopping app, and set its numbers on the ticket itself. */
+.coupons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
+  gap: 0.5rem;
+}
+
+fieldset.seasonal .coupons { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+
 .choice {
+  position: relative;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  transition: border-color 150ms ease-out, background-color 150ms ease-out, box-shadow 150ms ease-out;
+}
+
+.choice:hover { border-color: var(--line-strong); }
+
+.choice:has(input:checked) {
+  border-color: var(--category);
+  box-shadow: inset 0 0 0 1px var(--category);
+  background: var(--category-bg);
+}
+
+.choice > input[type="radio"] {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  accent-color: var(--category);
+}
+
+.choice > label:not(.param) {
+  display: grid;
+  align-content: start;
+  gap: 0.1rem;
+  padding: 0.65rem 2.3rem 0.6rem 0.85rem;
+  cursor: pointer;
+}
+
+.choice .title { font-weight: 600; }
+.choice .blurb { font-size: 0.8rem; color: var(--muted); }
+
+.choice .params {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem 0.65rem;
-  padding: 0.4rem 0.55rem;
-  margin: 0 -0.55rem;
-  border-radius: 8px;
-  transition: background-color 150ms ease-out;
-}
-
-.choice:has(input:checked) { background: var(--surface-2); }
-fieldset.coupon .choice:has(input:checked) { background: var(--coupon-bg); }
-fieldset.ontop .choice:has(input:checked) { background: var(--ontop-bg); }
-fieldset.seasonal .choice:has(input:checked) { background: var(--seasonal-bg); }
-
-.choice > label:not(.param) { font-weight: 550; cursor: pointer; }
-.choice .hint { font-weight: 400; margin-left: 0.3rem; }
-
-.params {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
   gap: 0.35rem 0.5rem;
-  margin-left: auto;
-  transition: opacity 150ms ease-out;
+  padding: 0.5rem 0.85rem 0.65rem;
+  border-top: 1px dashed var(--line-strong);
 }
 
-.choice:not(:has(input:checked)) .params { opacity: 0.6; }
-.choice:not(:has(input:checked)):hover .params, .choice:not(:has(input:checked)):focus-within .params { opacity: 1; }
-
+.choice:has(input:checked) .params { border-top-color: var(--category); }
 .choice .param { font-size: 0.8125rem; color: var(--muted); }
+.choice select { max-width: 100%; }
 
 .actions {
   display: flex;
@@ -478,7 +503,7 @@ details.json pre {
   align-items: baseline;
   justify-content: space-between;
   gap: 0.25rem 1rem;
-  padding: 0.75rem 0.9rem;
+  padding: 0.55rem 0.85rem;
   border-radius: 10px;
   background: var(--ok-bg);
   color: var(--ok);
@@ -495,7 +520,7 @@ details.json pre {
   margin: 0;
 }
 
-.summary div { border: 1px solid var(--line); border-radius: 8px; padding: 0.45rem 0.7rem; }
+.summary div { border: 1px solid var(--line); border-radius: 8px; padding: 0.35rem 0.65rem; }
 .summary dt { font-size: 0.78rem; color: var(--muted); }
 .summary dd { margin: 0; font-size: 1.05rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 
@@ -505,14 +530,14 @@ details.json pre {
   margin: 0.25rem 0 0;
   padding: 0;
   display: grid;
-  gap: 0.5rem;
+  gap: 0.4rem;
 }
 
 .step {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.15rem 0.9rem;
-  padding: 0.55rem 0.75rem;
+  gap: 0.1rem 0.9rem;
+  padding: 0.45rem 0.7rem;
   border: 1px solid var(--line);
   border-left: 3px solid var(--muted);
   border-radius: 8px;

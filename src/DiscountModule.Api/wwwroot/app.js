@@ -54,7 +54,7 @@
 
   // ---- items -------------------------------------------------------------------------------------
 
-  function addItem([name, category, unitPrice, quantity] = ["", "Clothing", "", ""]) {
+  function addItem([name, category, unitPrice, quantity = 1] = ["", "Clothing", "", 1]) {
     const row = document.createElement("tr");
 
     // On a narrow screen the table turns into one block per item; each cell then shows its own heading.
@@ -79,7 +79,7 @@
     const priceCell = nextCell();
     priceCell.className = "num";
     const priceInput = Object.assign(document.createElement("input"), { type: "number", className: "unitPrice", inputMode: "decimal" });
-    priceInput.step = "0.01";
+    priceInput.step = "1";
     priceInput.value = unitPrice === "" ? "" : String(unitPrice);
     priceCell.append(priceInput);
 
@@ -87,7 +87,7 @@
     quantityCell.className = "num";
     const quantityInput = Object.assign(document.createElement("input"), { type: "number", className: "quantity", inputMode: "numeric", placeholder: "1" });
     quantityInput.step = "1";
-    quantityInput.value = quantity === undefined || quantity === "" ? "" : String(quantity);
+    quantityInput.value = String(quantity);
     quantityCell.append(quantityInput);
 
     const removeCell = nextCell();

@@ -60,73 +60,79 @@
 
       <fieldset class="campaign coupon">
         <legend><span class="dot coupon" aria-hidden="true"></span>Coupon <span class="hint">off the whole order</span></legend>
-        <div class="choice">
-          <input type="radio" name="coupon" id="coupon-none" value="" checked>
-          <label for="coupon-none">None</label>
-        </div>
-        <div class="choice">
-          <input type="radio" name="coupon" id="coupon-fixed" value="FixedAmount">
-          <label for="coupon-fixed">Fixed amount</label>
-          <span class="params">
-            <label class="param" for="coupon-amount">Amount</label>
-            <span class="field"><input type="number" id="coupon-amount" data-for="coupon-fixed" step="0.01" inputmode="decimal" value="50" aria-label="Coupon, fixed amount: Amount (THB)"><span class="unit">THB</span></span>
-          </span>
-        </div>
-        <div class="choice">
-          <input type="radio" name="coupon" id="coupon-percent" value="Percentage">
-          <label for="coupon-percent">Percentage</label>
-          <span class="params">
-            <label class="param" for="coupon-percentage">Off the total</label>
-            <span class="field"><input type="number" id="coupon-percentage" data-for="coupon-percent" step="0.01" inputmode="decimal" value="10" aria-label="Coupon, percentage: Percent off"><span class="unit">%</span></span>
-          </span>
+        <div class="coupons">
+          <div class="choice none">
+            <input type="radio" name="coupon" id="coupon-none" value="" checked>
+            <label for="coupon-none"><span class="title">None</span><span class="blurb">Skip this category</span></label>
+          </div>
+          <div class="choice">
+            <input type="radio" name="coupon" id="coupon-fixed" value="FixedAmount">
+            <label for="coupon-fixed"><span class="title">Fixed amount</span><span class="blurb">An amount off the whole order</span></label>
+            <span class="params">
+              <label class="param" for="coupon-amount">Amount</label>
+              <span class="field"><input type="number" id="coupon-amount" data-for="coupon-fixed" step="1" inputmode="decimal" value="50" aria-label="Coupon, fixed amount: Amount (THB)"><span class="unit">THB</span></span>
+            </span>
+          </div>
+          <div class="choice">
+            <input type="radio" name="coupon" id="coupon-percent" value="Percentage">
+            <label for="coupon-percent"><span class="title">Percentage</span><span class="blurb">A percentage off the whole order</span></label>
+            <span class="params">
+              <label class="param" for="coupon-percentage">Percent</label>
+              <span class="field"><input type="number" id="coupon-percentage" data-for="coupon-percent" step="1" inputmode="decimal" value="10" aria-label="Coupon, percentage: Percent off"><span class="unit">%</span></span>
+            </span>
+          </div>
         </div>
       </fieldset>
 
       <fieldset class="campaign ontop">
         <legend><span class="dot ontop" aria-hidden="true"></span>On Top <span class="hint">one category, or points</span></legend>
-        <div class="choice">
-          <input type="radio" name="ontop" id="ontop-none" value="" checked>
-          <label for="ontop-none">None</label>
-        </div>
-        <div class="choice">
-          <input type="radio" name="ontop" id="ontop-category" value="CategoryPercentage">
-          <label for="ontop-category">Percentage off one category</label>
-          <span class="params">
-            <label class="param" for="ontop-item-category">Category</label>
-            <select id="ontop-item-category" data-for="ontop-category" aria-label="On Top, percentage off one category: Category">
-              <option>Clothing</option>
-              <option>Accessories</option>
-              <option>Electronics</option>
-            </select>
-            <label class="param" for="ontop-percentage">Off</label>
-            <span class="field"><input type="number" id="ontop-percentage" data-for="ontop-category" step="0.01" inputmode="decimal" value="15" aria-label="On Top, percentage off one category: Percent off the category"><span class="unit">%</span></span>
-          </span>
-        </div>
-        <div class="choice">
-          <input type="radio" name="ontop" id="ontop-points" value="Points">
-          <label for="ontop-points">Points <span class="hint">1 point = 1 THB, at most 20% of the total</span></label>
-          <span class="params">
-            <label class="param" for="ontop-points-count">Use</label>
-            <span class="field"><input type="number" id="ontop-points-count" data-for="ontop-points" step="1" inputmode="numeric" value="68" aria-label="On Top, points: Points to use"><span class="unit">pts</span></span>
-          </span>
+        <div class="coupons">
+          <div class="choice none">
+            <input type="radio" name="ontop" id="ontop-none" value="" checked>
+            <label for="ontop-none"><span class="title">None</span><span class="blurb">Skip this category</span></label>
+          </div>
+          <div class="choice">
+            <input type="radio" name="ontop" id="ontop-category" value="CategoryPercentage">
+            <label for="ontop-category"><span class="title">Percentage off one category</span><span class="blurb">A percentage off every item of that category</span></label>
+            <span class="params">
+              <label class="param" for="ontop-item-category">Category</label>
+              <select id="ontop-item-category" data-for="ontop-category" aria-label="On Top, percentage off one category: Category">
+                <option>Clothing</option>
+                <option>Accessories</option>
+                <option>Electronics</option>
+              </select>
+              <label class="param" for="ontop-percentage">Percent</label>
+              <span class="field"><input type="number" id="ontop-percentage" data-for="ontop-category" step="1" inputmode="decimal" value="15" aria-label="On Top, percentage off one category: Percent off the category"><span class="unit">%</span></span>
+            </span>
+          </div>
+          <div class="choice">
+            <input type="radio" name="ontop" id="ontop-points" value="Points">
+            <label for="ontop-points"><span class="title">Points</span><span class="blurb">1 point = 1 THB, at most 20% of the total</span></label>
+            <span class="params">
+              <label class="param" for="ontop-points-count">Points</label>
+              <span class="field"><input type="number" id="ontop-points-count" data-for="ontop-points" step="1" inputmode="numeric" value="68" aria-label="On Top, points: Points to use"><span class="unit">pts</span></span>
+            </span>
+          </div>
         </div>
       </fieldset>
 
       <fieldset class="campaign seasonal">
         <legend><span class="dot seasonal" aria-hidden="true"></span>Seasonal <span class="hint">for every X THB, Y THB off</span></legend>
-        <div class="choice">
-          <input type="radio" name="seasonal" id="seasonal-none" value="" checked>
-          <label for="seasonal-none">None</label>
-        </div>
-        <div class="choice">
-          <input type="radio" name="seasonal" id="seasonal-special" value="Seasonal">
-          <label for="seasonal-special">Special campaign</label>
-          <span class="params">
-            <label class="param" for="seasonal-every">Every</label>
-            <span class="field"><input type="number" id="seasonal-every" data-for="seasonal-special" step="0.01" inputmode="decimal" value="300" aria-label="Seasonal, special campaign: Every (THB)"><span class="unit">THB</span></span>
-            <label class="param" for="seasonal-discount">minus</label>
-            <span class="field"><input type="number" id="seasonal-discount" data-for="seasonal-special" step="0.01" inputmode="decimal" value="40" aria-label="Seasonal, special campaign: Minus (THB)"><span class="unit">THB</span></span>
-          </span>
+        <div class="coupons">
+          <div class="choice none">
+            <input type="radio" name="seasonal" id="seasonal-none" value="" checked>
+            <label for="seasonal-none"><span class="title">None</span><span class="blurb">Skip this category</span></label>
+          </div>
+          <div class="choice">
+            <input type="radio" name="seasonal" id="seasonal-special" value="Seasonal">
+            <label for="seasonal-special"><span class="title">Special campaign</span><span class="blurb">For every X THB of the total, Y THB off</span></label>
+            <span class="params">
+              <label class="param" for="seasonal-every">Every</label>
+              <span class="field"><input type="number" id="seasonal-every" data-for="seasonal-special" step="1" inputmode="decimal" value="300" aria-label="Seasonal, special campaign: Every (THB)"><span class="unit">THB</span></span>
+              <label class="param" for="seasonal-discount">minus</label>
+              <span class="field"><input type="number" id="seasonal-discount" data-for="seasonal-special" step="1" inputmode="decimal" value="40" aria-label="Seasonal, special campaign: Minus (THB)"><span class="unit">THB</span></span>
+            </span>
+          </div>
         </div>
       </fieldset>
 
