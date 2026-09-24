@@ -142,12 +142,14 @@ dotnet run --project src/DiscountModule.Api -- --urls http://localhost:5080    #
 ```
 
 - It opens with the combined example already priced. Six buttons load the five worked examples of the
-  assignment and that combined order; each one says which final price to expect.
+  assignment and that combined order; each button shows the final price to expect.
 - Items are edited in a table. Each campaign category is a group of radio buttons with **None** as the first
   choice, so the one-campaign-per-category rule is built into the form; typing a parameter selects its
-  campaign. Enter in any field prices the order.
-- The result panel shows the subtotal, the total discount, the final price and the points used, then one
-  row per applied campaign with the description the API wrote. Once the order is changed, the old result
+  campaign. The order is priced again a moment after any change; Enter in any field, or the button, prices
+  it at once.
+- The result panel shows the final price, the subtotal, the total discount and the points used, then one
+  row per applied campaign, receipt style: the price before, the discount and the price after, with the
+  description the API wrote. Once the order is changed, the old result
   is dimmed and the status says so until the order is priced again. **Request JSON** and **Response JSON**
   show exactly what was sent and what came back.
 - 400, 413, 415 and 422 are shown with the API's title and every message in `errors`; a network failure or

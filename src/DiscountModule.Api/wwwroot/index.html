@@ -8,33 +8,38 @@
 </head>
 <body>
   <header class="page-header">
-    <h1>Discount Module</h1>
-    <p>
-      Build an order, choose at most one campaign per category and price it. The page sends the order to
-      <code>POST /api/discounts</code> and shows the answer as it comes back; every rule lives in the module.
-    </p>
+    <div class="intro">
+      <h1>Discount Module</h1>
+      <p>
+        Build an order, pick campaigns and watch the price change. The page sends the order to
+        <code>POST /api/discounts</code> and shows the answer as it comes back; every rule lives in the module.
+      </p>
+    </div>
+    <ol class="pipeline" aria-label="Campaigns apply in this order">
+      <li><span class="dot coupon" aria-hidden="true"></span>Coupon</li>
+      <li><span class="dot ontop" aria-hidden="true"></span>On Top</li>
+      <li><span class="dot seasonal" aria-hidden="true"></span>Seasonal</li>
+    </ol>
   </header>
 
   <noscript><p class="notice">This page needs JavaScript to send the order to the API. The CLI and the API itself work without it.</p></noscript>
 
   <main class="workspace">
     <section class="panel order" aria-labelledby="order-heading">
-      <h2 id="order-heading">Order</h2>
-
       <div class="presets">
-        <p id="presets-label" class="label">Load an example from the assignment</p>
+        <p id="presets-label" class="label">Try an example from the assignment</p>
         <div class="preset-buttons" role="group" aria-labelledby="presets-label">
-          <button type="button" data-preset="fixed">1 · Fixed amount</button>
-          <button type="button" data-preset="percentage">2 · Percentage</button>
-          <button type="button" data-preset="category">3 · Category</button>
-          <button type="button" data-preset="points">4 · Points</button>
-          <button type="button" data-preset="seasonal">5 · Seasonal</button>
-          <button type="button" data-preset="all">All three categories</button>
+          <button type="button" data-preset="fixed">Fixed amount <span class="expect">550.00</span></button>
+          <button type="button" data-preset="percentage">Percentage <span class="expect">540.00</span></button>
+          <button type="button" data-preset="category">Category <span class="expect">2,382.50</span></button>
+          <button type="button" data-preset="points">Points <span class="expect">762.00</span></button>
+          <button type="button" data-preset="seasonal">Seasonal <span class="expect">750.00</span></button>
+          <button type="button" data-preset="all">All three <span class="expect">567.00</span></button>
         </div>
         <p id="preset-note" class="hint" aria-live="polite"></p>
       </div>
 
-      <h3>Items</h3>
+      <h2 id="order-heading" class="section"><span class="num" aria-hidden="true">1</span>Items</h2>
       <div class="table-scroll">
         <table class="items">
           <thead>
@@ -49,12 +54,12 @@
           <tbody id="items"></tbody>
         </table>
       </div>
-      <button type="button" id="add-item" class="secondary">Add item</button>
+      <button type="button" id="add-item" class="secondary">+ Add item</button>
 
-      <h3>Campaigns <span class="hint">one per category, applied Coupon, then On Top, then Seasonal</span></h3>
+      <h2 class="section"><span class="num" aria-hidden="true">2</span>Campaigns <span class="hint">at most one per category</span></h2>
 
-      <fieldset class="campaign">
-        <legend>Coupon</legend>
+      <fieldset class="campaign coupon">
+        <legend><span class="dot coupon" aria-hidden="true"></span>Coupon <span class="hint">off the whole order</span></legend>
         <div class="choice">
           <input type="radio" name="coupon" id="coupon-none" value="" checked>
           <label for="coupon-none">None</label>
@@ -62,19 +67,23 @@
         <div class="choice">
           <input type="radio" name="coupon" id="coupon-fixed" value="FixedAmount">
           <label for="coupon-fixed">Fixed amount</label>
-          <label class="param" for="coupon-amount">Amount (THB)</label>
-          <input type="number" id="coupon-amount" aria-label="Coupon, fixed amount: Amount (THB)" data-for="coupon-fixed" step="0.01" inputmode="decimal" value="50">
+          <span class="params">
+            <label class="param" for="coupon-amount">Amount</label>
+            <span class="field"><input type="number" id="coupon-amount" data-for="coupon-fixed" step="0.01" inputmode="decimal" value="50" aria-label="Coupon, fixed amount: Amount (THB)"><span class="unit">THB</span></span>
+          </span>
         </div>
         <div class="choice">
           <input type="radio" name="coupon" id="coupon-percent" value="Percentage">
           <label for="coupon-percent">Percentage</label>
-          <label class="param" for="coupon-percentage">Percent off</label>
-          <input type="number" id="coupon-percentage" aria-label="Coupon, percentage: Percent off" data-for="coupon-percent" step="0.01" inputmode="decimal" value="10">
+          <span class="params">
+            <label class="param" for="coupon-percentage">Off the total</label>
+            <span class="field"><input type="number" id="coupon-percentage" data-for="coupon-percent" step="0.01" inputmode="decimal" value="10" aria-label="Coupon, percentage: Percent off"><span class="unit">%</span></span>
+          </span>
         </div>
       </fieldset>
 
-      <fieldset class="campaign">
-        <legend>On Top</legend>
+      <fieldset class="campaign ontop">
+        <legend><span class="dot ontop" aria-hidden="true"></span>On Top <span class="hint">one category, or points</span></legend>
         <div class="choice">
           <input type="radio" name="ontop" id="ontop-none" value="" checked>
           <label for="ontop-none">None</label>
@@ -82,25 +91,29 @@
         <div class="choice">
           <input type="radio" name="ontop" id="ontop-category" value="CategoryPercentage">
           <label for="ontop-category">Percentage off one category</label>
-          <label class="param" for="ontop-item-category">Category</label>
-          <select id="ontop-item-category" aria-label="On Top, percentage off one category: Category" data-for="ontop-category">
-            <option>Clothing</option>
-            <option>Accessories</option>
-            <option>Electronics</option>
-          </select>
-          <label class="param" for="ontop-percentage">Percent off the category</label>
-          <input type="number" id="ontop-percentage" aria-label="On Top, percentage off one category: Percent off the category" data-for="ontop-category" step="0.01" inputmode="decimal" value="15">
+          <span class="params">
+            <label class="param" for="ontop-item-category">Category</label>
+            <select id="ontop-item-category" data-for="ontop-category" aria-label="On Top, percentage off one category: Category">
+              <option>Clothing</option>
+              <option>Accessories</option>
+              <option>Electronics</option>
+            </select>
+            <label class="param" for="ontop-percentage">Off</label>
+            <span class="field"><input type="number" id="ontop-percentage" data-for="ontop-category" step="0.01" inputmode="decimal" value="15" aria-label="On Top, percentage off one category: Percent off the category"><span class="unit">%</span></span>
+          </span>
         </div>
         <div class="choice">
           <input type="radio" name="ontop" id="ontop-points" value="Points">
           <label for="ontop-points">Points <span class="hint">1 point = 1 THB, at most 20% of the total</span></label>
-          <label class="param" for="ontop-points-count">Points to use</label>
-          <input type="number" id="ontop-points-count" aria-label="On Top, points: Points to use" data-for="ontop-points" step="1" inputmode="numeric" value="68">
+          <span class="params">
+            <label class="param" for="ontop-points-count">Use</label>
+            <span class="field"><input type="number" id="ontop-points-count" data-for="ontop-points" step="1" inputmode="numeric" value="68" aria-label="On Top, points: Points to use"><span class="unit">pts</span></span>
+          </span>
         </div>
       </fieldset>
 
-      <fieldset class="campaign">
-        <legend>Seasonal</legend>
+      <fieldset class="campaign seasonal">
+        <legend><span class="dot seasonal" aria-hidden="true"></span>Seasonal <span class="hint">for every X THB, Y THB off</span></legend>
         <div class="choice">
           <input type="radio" name="seasonal" id="seasonal-none" value="" checked>
           <label for="seasonal-none">None</label>
@@ -108,15 +121,18 @@
         <div class="choice">
           <input type="radio" name="seasonal" id="seasonal-special" value="Seasonal">
           <label for="seasonal-special">Special campaign</label>
-          <label class="param" for="seasonal-every">Every (THB)</label>
-          <input type="number" id="seasonal-every" aria-label="Seasonal, special campaign: Every (THB)" data-for="seasonal-special" step="0.01" inputmode="decimal" value="300">
-          <label class="param" for="seasonal-discount">Minus (THB)</label>
-          <input type="number" id="seasonal-discount" aria-label="Seasonal, special campaign: Minus (THB)" data-for="seasonal-special" step="0.01" inputmode="decimal" value="40">
+          <span class="params">
+            <label class="param" for="seasonal-every">Every</label>
+            <span class="field"><input type="number" id="seasonal-every" data-for="seasonal-special" step="0.01" inputmode="decimal" value="300" aria-label="Seasonal, special campaign: Every (THB)"><span class="unit">THB</span></span>
+            <label class="param" for="seasonal-discount">minus</label>
+            <span class="field"><input type="number" id="seasonal-discount" data-for="seasonal-special" step="0.01" inputmode="decimal" value="40" aria-label="Seasonal, special campaign: Minus (THB)"><span class="unit">THB</span></span>
+          </span>
         </div>
       </fieldset>
 
       <div class="actions">
         <button type="button" id="price" class="primary">Price the order</button>
+        <span class="hint">Prices itself a moment after any change; Enter or this button prices at once.</span>
         <details class="json">
           <summary>Request JSON</summary>
           <pre id="request-json"></pre>
@@ -125,34 +141,25 @@
     </section>
 
     <section class="panel result" aria-labelledby="result-heading" aria-live="polite" id="result">
-      <h2 id="result-heading">Result</h2>
+      <h2 id="result-heading" class="section"><span class="num" aria-hidden="true">3</span>Result</h2>
       <p id="result-status" class="status" data-state="empty">Nothing priced yet.</p>
 
       <div id="result-empty">
-        <p>Press <strong>Price the order</strong> to see the final price and how each campaign changed it.</p>
+        <p>Add items, pick campaigns and the price appears here.</p>
         <p class="hint">Campaigns apply in a fixed order: Coupon, then On Top, then Seasonal. Each step works on the price left by the step before it and never takes more than what is left.</p>
       </div>
 
       <div id="result-ok" hidden>
+        <div class="final">
+          <span class="final-label">Final price</span>
+          <span class="final-amount"><strong id="final-price">0.00</strong> <span class="currency">THB</span></span>
+        </div>
         <dl class="summary">
           <div><dt>Subtotal</dt><dd id="subtotal">0.00</dd></div>
           <div><dt>Total discount</dt><dd id="total-discount">0.00</dd></div>
-          <div class="final"><dt>Final price</dt><dd id="final-price">0.00</dd></div>
           <div><dt>Points used</dt><dd id="points-used">0</dd></div>
         </dl>
-        <div class="table-scroll">
-          <table class="breakdown">
-            <thead>
-              <tr>
-                <th scope="col">Step</th>
-                <th scope="col" class="num">Before</th>
-                <th scope="col" class="num">Discount</th>
-                <th scope="col" class="num">After</th>
-              </tr>
-            </thead>
-            <tbody id="breakdown"></tbody>
-          </table>
-        </div>
+        <ol class="steps" id="breakdown" aria-label="How the price was reached"></ol>
         <p id="no-campaigns" class="hint" hidden>No campaigns were applied, so the final price is the subtotal.</p>
       </div>
 

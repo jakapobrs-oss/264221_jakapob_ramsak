@@ -191,14 +191,23 @@
     if (note.dataset.preset === "true") {
       note.textContent = "Custom order (edited after loading an example).";
       note.dataset.preset = "false";
+      for (const button of document.querySelectorAll(".preset-buttons button")) {
+        button.setAttribute("aria-pressed", "false");
+      }
     }
   }
 
-  // Every edit of the order, typed or clicked, goes through here.
+  // Every edit of the order, typed or clicked, goes through here: the request preview and the stale
+  // marking update at once, and the order is priced again a moment later.
+  const AUTO_PRICE_DELAY_MS = 600;
+  let autoPriceTimer = null;
+
   function orderChanged() {
     updateRequestJson();
     markStale();
     markEdited();
+    clearTimeout(autoPriceTimer);
+    autoPriceTimer = setTimeout(price, AUTO_PRICE_DELAY_MS);
   }
 
   // ---- money ---------------------------------------------------------------------------------------
@@ -220,7 +229,11 @@
 
   // ---- pricing -------------------------------------------------------------------------------------
 
+  let latestRequest = 0;
+
   async function price() {
+    clearTimeout(autoPriceTimer);
+    const request = ++latestRequest;
     const button = $("price");
     button.disabled = true;
     button.textContent = "Pricing…";
@@ -234,6 +247,10 @@
         body: JSON.stringify(buildOrder()),
       });
       const text = await response.text();
+      if (request !== latestRequest) {
+        return; // a newer request is already on its way; its answer will be shown instead
+      }
+
       showResponseJson(text);
 
       const contentType = response.headers.get("Content-Type") ?? "";
@@ -254,11 +271,15 @@
         renderFailure(`The API answered with HTTP ${response.status}, but not with the JSON this page expects.`);
       }
     } catch (error) {
-      renderFailure(`The API could not be reached (${error.message}). Is the server running?`);
+      if (request === latestRequest) {
+        renderFailure(`The API could not be reached (${error.message}). Is the server running?`);
+      }
     } finally {
-      button.disabled = false;
-      button.textContent = "Price the order";
-      $("result").removeAttribute("aria-busy");
+      if (request === latestRequest) {
+        button.disabled = false;
+        button.textContent = "Price the order";
+        $("result").removeAttribute("aria-busy");
+      }
     }
   }
 
@@ -293,29 +314,45 @@
     $("final-price").textContent = formatMoney(result.finalPrice);
     $("points-used").textContent = String(result.pointsUsed);
 
-    const body = $("breakdown");
-    body.replaceChildren();
+    const list = $("breakdown");
+    list.replaceChildren();
     const steps = result.discounts;
     steps.forEach((step, index) => {
-      const row = body.insertRow();
+      const category = String(step.category);
+      const row = document.createElement("li");
+      row.className = `step ${category.toLowerCase()}`;
 
-      // A row header names the step: "1 · Coupon", the campaign, then the description the API wrote.
-      const stepCell = document.createElement("th");
-      stepCell.scope = "row";
-      row.append(stepCell);
-      const heading = document.createElement("div");
-      heading.className = "step-name";
-      heading.textContent = `${index + 1} · ${categoryName(step.category)} — ${String(step.campaign)}`;
+      const head = document.createElement("div");
+      head.className = "step-head";
+      const chip = document.createElement("span");
+      chip.className = `chip ${category.toLowerCase()}`;
+      chip.textContent = `${index + 1} · ${categoryName(category)}`;
+      const campaign = document.createElement("span");
+      campaign.textContent = String(step.campaign);
+      head.append(chip, campaign);
+
       const description = document.createElement("div");
       description.className = "step-description";
       description.textContent = String(step.description);
-      stepCell.append(heading, description);
 
-      for (const amount of [formatMoney(step.priceBefore), `−${formatMoney(step.discountAmount)}`, formatMoney(step.priceAfter)]) {
-        const cell = row.insertCell();
-        cell.className = "num";
-        cell.textContent = amount;
+      const amounts = document.createElement("div");
+      amounts.className = "step-amounts";
+      const parts = [
+        ["before", formatMoney(step.priceBefore)],
+        ["arrow", "→"],
+        ["minus", `−${formatMoney(step.discountAmount)}`],
+        ["arrow", "→"],
+        ["after", formatMoney(step.priceAfter)],
+      ];
+      for (const [kind, text] of parts) {
+        const part = document.createElement("span");
+        part.className = kind;
+        part.textContent = text;
+        amounts.append(part);
       }
+
+      row.append(head, description, amounts);
+      list.append(row);
     });
 
     $("no-campaigns").hidden = steps.length > 0;
@@ -385,6 +422,9 @@
     markStale();
     $("preset-note").textContent = preset.note;
     $("preset-note").dataset.preset = "true";
+    for (const button of document.querySelectorAll(".preset-buttons button")) {
+      button.setAttribute("aria-pressed", String(button.dataset.preset === name));
+    }
   }
 
   // ---- wiring --------------------------------------------------------------------------------------
