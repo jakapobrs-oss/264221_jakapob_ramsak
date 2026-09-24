@@ -394,4 +394,16 @@ public class CliAppTests
         Assert.Equal(CliApp.ExitInputError, exitCode);
         Assert.Contains("Cannot read '-order.json'", stderr);
     }
+
+    [Fact]
+    public void After_a_double_dash_a_lone_dash_still_reads_standard_input()
+    {
+        // As with cat: "--" ends the options, and "-" is still the name of standard input.
+        const string order = """{ "items": [ { "name": "Hat", "category": "Accessories", "unitPrice": 250 } ] }""";
+
+        var (exitCode, stdout, _) = RunWithInput(order, "--json", "--", "-");
+
+        Assert.Equal(CliApp.ExitSuccess, exitCode);
+        Assert.Contains("\"finalPrice\": 250.00", stdout);
+    }
 }

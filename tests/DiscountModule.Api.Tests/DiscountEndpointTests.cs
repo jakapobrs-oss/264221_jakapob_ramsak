@@ -161,6 +161,14 @@ public class DiscountEndpointTests(WebApplicationFactory<Program> factory) : ICl
     }
 
     [Fact]
+    public async Task A_json_type_with_a_plus_json_suffix_is_read_as_json()
+    {
+        HttpResponseMessage response = await PostAsync(Example("01-fixed-amount.json"), "application/ld+json");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
     public async Task A_body_over_the_size_limit_is_413_before_it_is_parsed()
     {
         string huge = "{ \"items\": [], \"padding\": \"" + new string('x', DiscountEndpoint.MaxOrderBytes) + "\" }";

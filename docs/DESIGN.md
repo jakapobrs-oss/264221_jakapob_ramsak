@@ -210,7 +210,8 @@ The CLI's `OrderRequestParser` checks the document's shape and leaves business r
   list of broken rules ends with "... and N more problems not shown". Files, stdin and bodies are decoded as
   strict UTF-8 (a UTF-8 byte order mark is skipped); invalid bytes or a UTF-16 byte order mark are an input
   error that names the offending byte. A body that is not
-  `application/json` gets 415; a body over 1 MiB gets 413, checked from `Content-Length` before reading and
+  JSON (`application/json`, or a `+json` type such as `application/ld+json`, as ASP.NET Core's
+  `HasJsonContentType` reads it) gets 415; a body over 1 MiB gets 413, checked from `Content-Length` before reading and
   again while reading (a request may not declare its size). Success is 200 with the `PricedOrder` JSON, the
   same shape the CLI prints with `--json`.
 - A string or property name holding an escaped lone surrogate (half of a UTF-16 pair) is reported as text
@@ -278,7 +279,8 @@ HTTP API (`tests/DiscountModule.Api.Tests`, the app running in memory through `W
   body without a declared size (the in-memory server always sends one); a declared oversize body is not read
 - a UTF-8 byte order mark is accepted; other methods and paths answer with problem details
 - the web page at / (and /index.html) with its script and style, in the right media types; a path that is
-  not a file of the page, a repository file included, answers 404 problem details
+  not a file of the page, a repository file included, answers 404 problem details; the page's script itself
+  is not run by the tests (it was checked by driving it in a browser)
 
 Core additions
 - extensibility: an example campaign that exists only in the tests is ordered, capped, validated and counted

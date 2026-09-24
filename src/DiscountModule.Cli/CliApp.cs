@@ -34,7 +34,8 @@ public static class CliApp
         Options:
           --json        print the result as JSON instead of a text breakdown
           -h, --help    show this help
-          --            treat every later argument as a file name, even if it starts with '-'
+          --            treat every later argument as a file name, even if it starts with '-';
+                        a lone '-' still reads standard input
 
         Exit codes: 0 = success, 1 = the order breaks a discount rule, 2 = the input could not be read,
                     3 = unexpected error.
