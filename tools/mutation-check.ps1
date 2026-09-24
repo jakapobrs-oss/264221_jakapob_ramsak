@@ -78,7 +78,10 @@ $mutants = @(
     @{ Name = 'UTF-8: U+FEFF not skipped'; File = 'src/DiscountModule.Json/OrderRequestParser.cs'; Find = 'if (json.StartsWith(ByteOrderMark))'; Replace = 'if (json.Length < 0)' },
     @{ Name = 'UTF-8: file decoded by guesswork'; File = 'src/DiscountModule.Json/OrderRequestParser.cs'; Find = 'utf8 = File.ReadAllBytes(path);'; Replace = 'utf8 = Encoding.UTF8.GetBytes(File.ReadAllText(path));' },
     @{ Name = 'API: body decoded leniently'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'OrderRequest order = OrderRequestParser.ParseUtf8(body);'; Replace = 'OrderRequest order = OrderRequestParser.Parse(System.Text.Encoding.UTF8.GetString(body));' },
-    @{ Name = 'API: the page is not served'; File = 'src/DiscountModule.Api/Program.cs'; Find = 'app.UseStaticFiles();'; Replace = 'app.UseRouting();' }
+    @{ Name = 'API: the page is not served'; File = 'src/DiscountModule.Api/Program.cs'; Find = 'app.UseStaticFiles();'; Replace = 'app.UseRouting();' },
+    @{ Name = 'Category share: an exact half satang rounded down'; File = 'src/DiscountModule/Money.cs'; Find = 'Int128 satang = ((2 * numerator) + denominator) / (2 * denominator);'; Replace = 'Int128 satang = ((2 * numerator) + denominator - 1) / (2 * denominator);' },
+    @{ Name = 'Negative discount not clamped to 0'; File = 'src/DiscountModule/DiscountCalculator.cs'; Find = 'Math.Clamp(campaign.ComputeDiscount(context), 0m, runningTotal)'; Replace = 'Math.Min(campaign.ComputeDiscount(context), runningTotal)' },
+    @{ Name = 'JSON: whole number below int.MinValue not reported'; File = 'src/DiscountModule.Json/JsonObjectReader.cs'; Find = 'if (number < int.MinValue || number > int.MaxValue)'; Replace = 'if (number > int.MaxValue)' }
 )
 
 $survivors = 0

@@ -194,6 +194,23 @@ public class CampaignRuleTests
     }
 
     [Fact]
+    public void A_category_share_of_exactly_half_a_satang_rounds_away_from_zero()
+    {
+        // 800 - 700 = 100 left, and the pin makes up 1 of the 800, so its share is 100 x 1 / 800 = 0.125:
+        // exactly half a satang, which rounds to 0.13 (A8), not to 0.12.
+        Cart cart = new([
+            new CartItem("Pin", ItemCategory.Clothing, 1m),
+            new CartItem("Bag", ItemCategory.Accessories, 799m),
+        ]);
+
+        DiscountResult result = DiscountCalculator.Calculate(
+            cart, [new FixedAmountCoupon(700m), new CategoryPercentageOnTop(ItemCategory.Clothing, 100m)]);
+
+        Assert.Equal(0.13m, result.AppliedDiscounts[1].DiscountAmount);
+        Assert.Equal(99.87m, result.FinalPrice);
+    }
+
+    [Fact]
     public void Quantity_multiplies_the_unit_price_in_the_subtotal_and_in_the_category_total()
     {
         // 2 x 350 + 250 = 950; 15% of the two T-Shirts (700) = 105.

@@ -133,6 +133,7 @@ public class OrderRequestParserTests
     [InlineData("""{ "items": [ { "name": "Hat", "category": "Accessories", "unitPrice": 250, "quantity": 2.0000000000000000000000000001 } ] }""", """$.items[0].quantity: expected a whole number, got 2.0000000000000000000000000001""")]
     [InlineData("""{ "items": [ { "name": "Hat", "category": "Accessories", "unitPrice": 250, "quantity": null } ] }""", """$.items[0].quantity: expected a whole number, got null""")]
     [InlineData("""{ "items": [ { "name": "Hat", "category": "Accessories", "unitPrice": 250, "quantity": 3000000000 } ] }""", """$.items[0].quantity: 3000000000 is out of range""")]
+    [InlineData("""{ "items": [ { "name": "Hat", "category": "Accessories", "unitPrice": 250, "quantity": -3000000000 } ] }""", """$.items[0].quantity: -3000000000 is out of range""")]
     [InlineData("""{ "items": [ { "name": "Hat", "category": "Shoes", "unitPrice": 250 } ] }""", """$.items[0].category: unknown value "Shoes" (expected one of: Clothing, Accessories, Electronics)""")]
     [InlineData("""{ "items": [ { "name": "Hat", "category": "Clothing,Accessories", "unitPrice": 250 } ] }""", """$.items[0].category: unknown value "Clothing,Accessories" (expected one of: Clothing, Accessories, Electronics)""")]
     [InlineData("""{ "items": [ { "name": "Hat", "category": "1", "unitPrice": 250 } ] }""", """$.items[0].category: unknown value "1" (expected one of: Clothing, Accessories, Electronics)""")]
@@ -157,6 +158,7 @@ public class OrderRequestParserTests
     [InlineData("""{ "campaigns": [ { "type": "Points", "points": 10, "amount": null } ] }""", """$.campaigns[0]: unexpected property "amount" (expected: type, points)""")]
     [InlineData("""{ "campaigns": [ { "type": "Points", "points": 2.5 } ] }""", """$.campaigns[0].points: expected a whole number, got 2.5""")]
     [InlineData("""{ "campaigns": [ { "type": "Points", "points": 3000000000 } ] }""", """$.campaigns[0].points: 3000000000 is out of range""")]
+    [InlineData("""{ "campaigns": [ { "type": "Points", "points": -3000000000 } ] }""", """$.campaigns[0].points: -3000000000 is out of range""")]
     public void A_problem_in_the_order_or_its_campaigns_is_reported_with_its_json_path(string json, string expectedError)
     {
         // Wrap the fragment in an otherwise valid order, so the only problem is the one under test.

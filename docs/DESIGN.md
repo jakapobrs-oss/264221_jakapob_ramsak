@@ -288,5 +288,5 @@ Core additions
   min(points, floor(20% of the price at that step)); a category discount equals min(listed-price
   discount, the category's share of the price before it), rounded once
 
-Mutation check (`tools/mutation-check.ps1`): 40 deliberate faults, one at a time, each must make at least one
+Mutation check (`tools/mutation-check.ps1`): 43 deliberate faults, one at a time, each must make at least one
 test fail.

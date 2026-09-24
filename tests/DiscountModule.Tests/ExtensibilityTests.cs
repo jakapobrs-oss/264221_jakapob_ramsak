@@ -30,6 +30,19 @@ public class ExtensibilityTests
         public override string Describe(DiscountContext context) => Invariant($"{Amount:0.00} THB off for members");
     }
 
+    /// <summary>EXAMPLE ONLY: a faulty campaign whose rule comes out negative.</summary>
+    private sealed record SurchargeOnTop : Campaign
+    {
+        public override CampaignCategory Category => CampaignCategory.OnTop;
+        public override string Name => "Faulty discount";
+
+        public override IEnumerable<string> Validate() => [];
+
+        public override decimal ComputeDiscount(DiscountContext context) => -50m;
+
+        public override string Describe(DiscountContext context) => "50.00 THB added by mistake";
+    }
+
     [Fact]
     public void A_new_campaign_type_takes_its_categorys_place_in_the_order()
     {
@@ -55,6 +68,18 @@ public class ExtensibilityTests
 
         Assert.Equal(600m, Assert.Single(result.AppliedDiscounts).DiscountAmount);
         Assert.Equal(0m, result.FinalPrice);
+    }
+
+    [Fact]
+    public void A_campaign_that_computes_a_negative_discount_takes_nothing_off_and_adds_nothing()
+    {
+        // A step never adds to the price (A6), whatever a campaign computes.
+        DiscountResult result = DiscountCalculator.Calculate(SampleCarts.TShirtAndHat(), [new SurchargeOnTop()]);
+
+        AppliedDiscount step = Assert.Single(result.AppliedDiscounts);
+        Assert.Equal(0m, step.DiscountAmount);
+        Assert.Equal(600m, step.PriceAfter);
+        Assert.Equal(600m, result.FinalPrice);
     }
 
     [Fact]

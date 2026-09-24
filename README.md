@@ -320,16 +320,16 @@ pwsh tools/mutation-check.ps1        # break the code on purpose and confirm the
 
 | Project | Tests | What they cover |
 |---------|-------|-----------------|
-| `DiscountModule.Tests` | 113 | worked examples, campaign rules and caps, application order, validation, breakdown, culture; 500 random orders from a fixed seed checked against rules that must always hold; an example campaign added without changing the calculator |
-| `DiscountModule.Json.Tests` | 78 | every shape problem the parser reports, with its exact message and JSON path; strict UTF-8; the limit of 100 problems, also inside one object |
+| `DiscountModule.Tests` | 115 | worked examples, campaign rules and caps, application order, validation, breakdown, culture; 500 random orders from a fixed seed checked against rules that must always hold; an example campaign added without changing the calculator |
+| `DiscountModule.Json.Tests` | 80 | every shape problem the parser reports, with its exact message and JSON path; strict UTF-8; the limit of 100 problems, also inside one object |
 | `DiscountModule.Cli.Tests` | 51 | exit codes 0 to 3, text and JSON output, Thai item names, long names, control characters, line separators and direction overrides, UTF-8 files and stdin, the problem limit, and 3,600 damaged orders generated from a fixed seed (fuzzing) that must never crash the CLI |
 | `DiscountModule.Api.Tests` | 47 | the HTTP endpoint running in memory: the same JSON as the CLI for every example order, 400, 413 at the exact byte limit, 415, 422, UTF-8 only, the problem limit, problem details; the web page at `/` with its script and style, and paths that are not files of the page |
 
 - **Fuzzing found a real bug.** A JSON string holding an escaped lone surrogate, half of a UTF-16 pair,
   crashed the reader. It is now reported as an input error with its JSON path, and a test keeps it that way.
-- **Mutation check.** [`tools/mutation-check.ps1`](tools/mutation-check.ps1) breaks 40 rules one at a time
+- **Mutation check.** [`tools/mutation-check.ps1`](tools/mutation-check.ps1) breaks 43 rules one at a time
   (rounding mode, sort order, caps, validation, JSON checks, strict UTF-8, output escaping, API limits, the
-  problem limit, the web page) and runs every test after each change. All 40 are caught. It first runs the tests on the
+  problem limit, serving the web page) and runs every test after each change. All 43 are caught. It first runs the tests on the
   unchanged code and stops if any of them fails, since a failure could then not be blamed on a mutant.
 - **CI.** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) is a GitHub Actions workflow that builds the
   solution, checks its formatting with `dotnet format` and runs every test on each push to `main`, on pull
