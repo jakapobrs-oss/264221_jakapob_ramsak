@@ -289,7 +289,8 @@ pwsh tools/mutation-check.ps1        # break the code on purpose and confirm the
   crashed the reader. It is now reported as an input error with its JSON path, and a test keeps it that way.
 - **Mutation check.** [`tools/mutation-check.ps1`](tools/mutation-check.ps1) breaks 38 rules one at a time
   (rounding mode, sort order, caps, validation, JSON checks, strict UTF-8, output escaping, API limits, the
-  problem limit) and runs every test after each change. All 38 are caught.
+  problem limit) and runs every test after each change. All 38 are caught. It first runs the tests on the
+  unchanged code and stops if any of them fails, since a failure could then not be blamed on a mutant.
 - **CI.** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) is a GitHub Actions workflow that builds the
   solution, checks its formatting with `dotnet format` and runs every test on each push to `main`, on pull
   requests and on demand.

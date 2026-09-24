@@ -7,6 +7,9 @@
     "banker's rounding"), runs every test, then restores the file byte for byte. A mutant is "caught"
     when at least one test fails. A mutant that survives points at a rule no test really checks.
 
+    The tests run once on the unchanged code first. If any of them fails there, a failure could not be
+    blamed on a mutant, so the check stops with exit code 2.
+
     Runs on Windows PowerShell 5.1 and PowerShell 7 (pwsh) on any OS. Needs a clean git working tree.
 
 .EXAMPLE
@@ -23,6 +26,15 @@ Set-Location (Join-Path $PSScriptRoot '..')
 
 if (git status --porcelain) {
     Write-Error 'Commit or stash your changes first: the check edits source files and restores them afterwards.'
+    exit 2
+}
+
+# A mutant counts as caught only when a test fails because of it, so every test must pass without one.
+Write-Output 'Running the tests on the unchanged code...'
+$baseline = dotnet test -c $Configuration --nologo -v q -p:TreatWarningsAsErrors=false 2>&1 | Out-String
+if ($LASTEXITCODE -ne 0 -or $baseline -match 'Failed!|error CS\d+') {
+    Write-Output $baseline
+    Write-Error 'The tests fail on the unchanged code, so no mutant can be judged. Make them pass first.'
     exit 2
 }
 
