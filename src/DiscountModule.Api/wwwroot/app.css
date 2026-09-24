@@ -461,7 +461,9 @@ fieldset.seasonal .coupons { grid-template-columns: repeat(auto-fit, minmax(240p
 
 .actions .hint { flex: 1 1 14rem; }
 
-details.json { flex-basis: 100%; }
+/* The width comes from the panel, never from the JSON: long lines scroll inside the box instead of
+   widening the page on a phone. */
+details.json { flex-basis: 100%; contain: inline-size; }
 details.json summary { cursor: pointer; color: var(--muted); font-size: 0.8125rem; }
 
 details.json pre {
