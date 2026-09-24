@@ -19,13 +19,14 @@ public class CliFuzzTests
     // JSON escapes are assembled at run time ("\\u" + ...) so that no tool or editor turns them into raw characters.
     private static readonly string LoneSurrogate = "\"\\u" + "D800\"";
     private static readonly string EscapeSequence = "\"\\u" + "001b[31m\"";
+    private static readonly string LineSeparator = "\"a\\u" + "2028b\"";
 
     /// <summary>Fragments that tend to break parsers: structure characters, extreme numbers and unusual strings.</summary>
     private static readonly string[] Fragments =
     [
         "{", "}", "[", "]", ",", ":", "\"", "null", "true", "-1", "0", "-0", "0.005", "1e-30", "1e30", "1e400",
         "79228162514264337593543950336", "2147483648", "2.5", "\"\"", "\" \"", "\"Clothing,Accessories\"", "\"1\"",
-        "\"เสื้อยืด\"", "\"😀\"", "\"line\\nbreak\"", EscapeSequence, LoneSurrogate, "\"" + new string('x', 5_000) + "\"",
+        "\"เสื้อยืด\"", "\"😀\"", "\"line\\nbreak\"", EscapeSequence, LineSeparator, LoneSurrogate, "\"" + new string('x', 5_000) + "\"",
     ];
 
     private static readonly Regex Value = new(@"(?<=:\s*)(-?\d[\d.eE+-]*|""(?:[^""\\]|\\.)*"")", RegexOptions.CultureInvariant);
@@ -93,10 +94,14 @@ public class CliFuzzTests
                 Assert.True(output.Length == 0 && errors.Length > 0, $"{context}: a failure must explain itself on stderr only");
             }
 
-            // Whatever the input, nothing printed carries control characters other than line breaks.
+            // Whatever the input, nothing printed carries control characters other than line breaks, nor the
+            // line and paragraph separators that editors and pagers also treat as line breaks.
             Assert.False(
                 (output + errors).Any(character => char.IsControl(character) && character is not ('\r' or '\n')),
                 $"{context}: printed a control character");
+            Assert.False(
+                (output + errors).Any(character => character == (char)0x2028 || character == (char)0x2029),
+                $"{context}: printed a line or paragraph separator");
         }
     }
 

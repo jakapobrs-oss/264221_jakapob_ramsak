@@ -175,6 +175,24 @@ public class CliAppTests
     }
 
     [Fact]
+    public void Line_and_paragraph_separators_in_an_item_name_are_escaped_so_they_cannot_start_a_line()
+    {
+        // U+2028 and U+2029 are not control characters, but editors, pagers and most programs that split text
+        // into lines start a new line at them: this name would show a line of its own reading "Total discount".
+        const char LineSeparator = (char)0x2028;
+        const char ParagraphSeparator = (char)0x2029;
+        string name = JsonSerializer.Serialize("Coat" + LineSeparator + "Total discount -999.00" + ParagraphSeparator);
+        string order = $$"""{ "items": [ { "name": {{name}}, "category": "Clothing", "unitPrice": 350 } ] }""";
+
+        var (exitCode, stdout, _) = RunWithInput(order, "-");
+
+        Assert.Equal(CliApp.ExitSuccess, exitCode);
+        Assert.DoesNotContain(LineSeparator, stdout);
+        Assert.DoesNotContain(ParagraphSeparator, stdout);
+        Assert.StartsWith("  1 x Coat" + @"\" + "u2028Total discount -999.00" + @"\" + "u2029 (Clothing) @ 350.00", Lines(stdout)[1]);
+    }
+
+    [Fact]
     public void Zero_width_characters_of_real_text_are_printed_as_they_are()
     {
         // A zero width space marks a word break in Thai; a zero width joiner builds an emoji sequence.

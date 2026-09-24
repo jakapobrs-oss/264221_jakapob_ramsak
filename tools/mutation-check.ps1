@@ -60,6 +60,7 @@ $mutants = @(
     @{ Name = 'JSON: half surrogate pair crashes the reader'; File = 'src/DiscountModule.Json/JsonObjectReader.cs'; Find = 'catch (InvalidOperationException)'; Replace = 'catch (FormatException)' },
     @{ Name = 'CLI: control characters printed as they are'; File = 'src/DiscountModule.Cli/Output/ConsoleText.cs'; Find = 'if (!text.Any(NeedsEscape))'; Replace = 'if (text.Length >= 0)' },
     @{ Name = 'CLI: direction overrides printed as they are'; File = 'src/DiscountModule.Cli/Output/ConsoleText.cs'; Find = 'char.IsControl(character) || IsBidirectionalControl(character)'; Replace = 'char.IsControl(character)' },
+    @{ Name = 'CLI: line separators printed as they are'; File = 'src/DiscountModule.Cli/Output/ConsoleText.cs'; Find = 'IsLineOrParagraphSeparator(character) || char.IsControl(character)'; Replace = 'char.IsControl(character)' },
     @{ Name = 'CLI: Thai marks counted as columns'; File = 'src/DiscountModule.Cli/Output/ResultPrinter.cs'; Find = 'is not (UnicodeCategory.NonSpacingMark or UnicodeCategory.EnclosingMark or UnicodeCategory.Format)'; Replace = 'is not UnicodeCategory.Control' },
     @{ Name = 'CLI: long item names not shortened'; File = 'src/DiscountModule.Cli/Output/ResultPrinter.cs'; Find = 'string name = Shorten(ConsoleText.Escape(item.Name), MaxNameWidth);'; Replace = 'string name = item.Name;' },
     @{ Name = 'CLI: -- does not end the options'; File = 'src/DiscountModule.Cli/CliApp.cs'; Find = 'optionsEnded = true;'; Replace = 'optionsEnded = false;' },

@@ -200,6 +200,8 @@ The CLI's `OrderRequestParser` checks the document's shape and leaves business r
 - Characters that change the direction of the text (U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to
   U+2069) are escaped the same way, so an item name cannot reorder how a line reads ("Trojan Source").
   Zero width spaces and joiners are printed as they are: real Thai, Arabic and emoji text uses them.
+- The line and paragraph separators (U+2028, U+2029) are escaped too. They are not control characters, but
+  editors, pagers and most programs that split text into lines start a new line at them.
 - The HTTP API answers the same two passes with status codes: 400 for shape problems, 422 for broken
   business rules, both as RFC 9457 problem details listing the problems in `errors`: all of them up to 100.
   Past 100, the JSON reader stops and ends the list with "Stopped after 100 problems; fix these first", and a
@@ -257,14 +259,15 @@ CLI (`tests/DiscountModule.Cli.Tests`)
 - exit code 1 with every broken rule listed (`invalid-values.json`), exit code 2 with every shape problem
   listed (`invalid-format.json`), usage errors (no file, two files, unknown option, `--`)
 - text output: items, breakdown and total in one aligned column, also with Thai item names; control
-  characters in a name or in an error are escaped, and so are direction overrides, while the zero width
-  characters of real text are kept; JSON output order
+  characters in a name or in an error are escaped, and so are line separators and direction overrides,
+  while the zero width characters of real text are kept; JSON output order
 - a 10,000-character item name is shortened to 60 columns ending in "…", so no line grows with it; a Thai
   name is cut by columns and keeps the marks of its last letter
 - an unexpected failure (a broken output stream) exits with 3 and one line on stderr
 - fuzzing: 300 damaged copies of each example file, generated from a fixed seed (deleted and inserted
   characters, extreme numbers, unusual strings, truncation). The CLI must answer every one with exit code
   0, 1 or 2, write only to the matching stream, print valid JSON with `--json`, and print no control characters
+  or line separators
 
 HTTP API (`tests/DiscountModule.Api.Tests`, the app running in memory through `WebApplicationFactory`)
 - every example order priced (200) with the expected final price, in the same shape as the CLI output
@@ -281,5 +284,5 @@ Core additions
   min(points, floor(20% of the price at that step)); a category discount equals min(listed-price
   discount, the category's share of the price before it), rounded once
 
-Mutation check (`tools/mutation-check.ps1`): 38 deliberate faults, one at a time, each must make at least one
+Mutation check (`tools/mutation-check.ps1`): 39 deliberate faults, one at a time, each must make at least one
 test fail.

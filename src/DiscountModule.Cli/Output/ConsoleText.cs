@@ -7,7 +7,8 @@ namespace DiscountModule.Cli.Output;
 /// Makes text that came from the input safe to print on one terminal line. Control characters such as
 /// a newline, a tab or ESC are written as escapes (\n, \t, \u001b) instead of breaking the line or
 /// sending terminal commands, so every item and every error stays on its own line. Characters that change
-/// the direction of the text are escaped the same way, so they cannot reorder how the line is shown.
+/// the direction of the text are escaped the same way, so they cannot reorder how the line is shown, and
+/// so are the line and paragraph separators, which many programs treat as line breaks.
 /// </summary>
 public static class ConsoleText
 {
@@ -35,7 +36,16 @@ public static class ConsoleText
         return escaped.ToString();
     }
 
-    private static bool NeedsEscape(char character) => char.IsControl(character) || IsBidirectionalControl(character);
+    private static bool NeedsEscape(char character)
+        => IsLineOrParagraphSeparator(character) || char.IsControl(character) || IsBidirectionalControl(character);
+
+    /// <summary>
+    /// True for U+2028 LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR. They are not control characters, but
+    /// editors, pagers and most programs that split text into lines start a new line at them, so a name
+    /// holding one could put text that looks like a line of the breakdown on a line of its own.
+    /// </summary>
+    private static bool IsLineOrParagraphSeparator(char character)
+        => char.GetUnicodeCategory(character) is UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator;
 
     /// <summary>
     /// True for the characters that change the direction of the text after them: U+061C, U+200E, U+200F,
