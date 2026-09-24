@@ -152,7 +152,9 @@ configuration, which a real deployment would add in front of it.
 - `campaigns` may be empty or left out: the final price is then the subtotal.
 - Files, stdin and HTTP bodies must be UTF-8; a UTF-8 byte order mark is allowed. A UTF-16 file is refused
   with a message saying so. Windows PowerShell 5.1 writes UTF-16 with `>`, so save order files with
-  `Set-Content -Encoding utf8` there, or use PowerShell 7.
+  `Set-Content -Encoding utf8` there, or use PowerShell 7. It also pipes text to programs as ASCII, so a
+  Thai item name piped to stdin arrives as `?`: run `$OutputEncoding = [System.Text.UTF8Encoding]::new()`
+  first, or pass the file name instead.
 - The file is checked strictly. Each shape problem is reported with its JSON path, up to 100 per order:
   a missing or unexpected property (even one set to `null`), a property given twice, a number written as a
   string, a fractional quantity, a number a `decimal` cannot hold exactly (such as `1e-30`), an escaped lone
@@ -261,9 +263,10 @@ The front ends check the JSON in two passes. They first report the problems with
 (CLI exit code 2, HTTP 400). Once the shape is right, the module reports every broken business rule
 (exit code 1, HTTP 422). A JSON syntax error stops the first pass at that error, since nothing after it
 can be read reliably. The CLI prints text taken from the input, such as an item name, with control
-characters escaped (`\n`, `\t`), so each item and each problem stays on its own line. Characters that
-change the direction of the text, such as U+202E, are escaped too, so a name cannot make a line read in
-another order.
+characters escaped (`\n`, `\t`), so each item and each problem stays on its own line. The line and
+paragraph separators U+2028 and U+2029 are escaped as well, because editors and pagers start a new line
+at them. Characters that change the direction of the text, such as U+202E, are escaped too, so a name
+cannot make a line read in another order.
 
 The module itself reports every broken rule. The front ends list at most 100 of them, followed by a line
 saying how many were left out. The JSON reader stops reading after 100 shape problems and ends the list
@@ -282,14 +285,14 @@ pwsh tools/mutation-check.ps1        # break the code on purpose and confirm the
 |---------|-------|-----------------|
 | `DiscountModule.Tests` | 113 | worked examples, campaign rules and caps, application order, validation, breakdown, culture; 500 random orders from a fixed seed checked against rules that must always hold; an example campaign added without changing the calculator |
 | `DiscountModule.Json.Tests` | 78 | every shape problem the parser reports, with its exact message and JSON path; strict UTF-8; the limit of 100 problems, also inside one object |
-| `DiscountModule.Cli.Tests` | 50 | exit codes 0 to 3, text and JSON output, Thai item names, long names, control characters and direction overrides, UTF-8 files and stdin, the problem limit, and 3,600 damaged orders generated from a fixed seed (fuzzing) that must never crash the CLI |
+| `DiscountModule.Cli.Tests` | 51 | exit codes 0 to 3, text and JSON output, Thai item names, long names, control characters, line separators and direction overrides, UTF-8 files and stdin, the problem limit, and 3,600 damaged orders generated from a fixed seed (fuzzing) that must never crash the CLI |
 | `DiscountModule.Api.Tests` | 38 | the HTTP endpoint running in memory: the same JSON as the CLI for every example order, 400, 413 at the exact byte limit, 415, 422, UTF-8 only, the problem limit, problem details |
 
 - **Fuzzing found a real bug.** A JSON string holding an escaped lone surrogate, half of a UTF-16 pair,
   crashed the reader. It is now reported as an input error with its JSON path, and a test keeps it that way.
-- **Mutation check.** [`tools/mutation-check.ps1`](tools/mutation-check.ps1) breaks 38 rules one at a time
+- **Mutation check.** [`tools/mutation-check.ps1`](tools/mutation-check.ps1) breaks 39 rules one at a time
   (rounding mode, sort order, caps, validation, JSON checks, strict UTF-8, output escaping, API limits, the
-  problem limit) and runs every test after each change. All 38 are caught. It first runs the tests on the
+  problem limit) and runs every test after each change. All 39 are caught. It first runs the tests on the
   unchanged code and stops if any of them fails, since a failure could then not be blamed on a mutant.
 - **CI.** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) is a GitHub Actions workflow that builds the
   solution, checks its formatting with `dotnet format` and runs every test on each push to `main`, on pull
