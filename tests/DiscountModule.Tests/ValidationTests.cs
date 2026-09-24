@@ -118,7 +118,7 @@ public class ValidationTests
         Cart cart = new([largestLine, largestLine]);
 
         Assert.Equal(
-            "Cart subtotal is too large (max 1,000,000,000,000,000, got 2000000000000000)",
+            "Cart subtotal is too large (max 1,000,000,000,000,000, got 2,000,000,000,000,000.00)",
             SingleError(cart, []));
     }
 

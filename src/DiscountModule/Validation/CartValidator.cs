@@ -46,7 +46,8 @@ internal static class CartValidator
         // cannot overflow, and a broken line is not reported a second time as a subtotal problem.
         if (everyLineIsValid && cart.Subtotal > InputLimits.MaxSubtotal)
         {
-            yield return Invariant($"Cart subtotal is too large (max {MaxSubtotalText}, got {cart.Subtotal})");
+            // Every line is whole satang here, so the subtotal prints exactly with 2 decimals, grouped like the limit.
+            yield return $"Cart subtotal is too large (max {MaxSubtotalText}, got {Money.Format(cart.Subtotal)})";
         }
     }
 
