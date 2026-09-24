@@ -77,7 +77,8 @@ $mutants = @(
     @{ Name = 'UTF-8: UTF-16 byte order mark not named'; File = 'src/DiscountModule.Json/OrderRequestParser.cs'; Find = 'if (utf8.StartsWith(Utf16LittleEndianMark) || utf8.StartsWith(Utf16BigEndianMark))'; Replace = 'if (utf8.Length < 0)' },
     @{ Name = 'UTF-8: U+FEFF not skipped'; File = 'src/DiscountModule.Json/OrderRequestParser.cs'; Find = 'if (json.StartsWith(ByteOrderMark))'; Replace = 'if (json.Length < 0)' },
     @{ Name = 'UTF-8: file decoded by guesswork'; File = 'src/DiscountModule.Json/OrderRequestParser.cs'; Find = 'utf8 = File.ReadAllBytes(path);'; Replace = 'utf8 = Encoding.UTF8.GetBytes(File.ReadAllText(path));' },
-    @{ Name = 'API: body decoded leniently'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'OrderRequest order = OrderRequestParser.ParseUtf8(body);'; Replace = 'OrderRequest order = OrderRequestParser.Parse(System.Text.Encoding.UTF8.GetString(body));' }
+    @{ Name = 'API: body decoded leniently'; File = 'src/DiscountModule.Api/DiscountEndpoint.cs'; Find = 'OrderRequest order = OrderRequestParser.ParseUtf8(body);'; Replace = 'OrderRequest order = OrderRequestParser.Parse(System.Text.Encoding.UTF8.GetString(body));' },
+    @{ Name = 'API: the page is not served'; File = 'src/DiscountModule.Api/Program.cs'; Find = 'app.UseStaticFiles();'; Replace = 'app.UseRouting();' }
 )
 
 $survivors = 0

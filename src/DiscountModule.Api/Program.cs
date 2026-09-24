@@ -12,6 +12,11 @@ WebApplication app = builder.Build();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
+// The page at /: a small form in wwwroot that builds the same JSON the endpoint accepts and shows what it
+// answers. It holds no pricing logic of its own. A path that is not a file falls through to the 404 above.
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.MapPost("/api/discounts", DiscountEndpoint.PriceAsync);
 
 app.Run();

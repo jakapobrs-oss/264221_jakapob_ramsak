@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Discount Module</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="page-header">
+    <h1>Discount Module</h1>
+    <p>
+      Build an order, choose at most one campaign per category and price it. The page sends the order to
+      <code>POST /api/discounts</code> and shows the answer as it comes back; every rule lives in the module.
+    </p>
+  </header>
+
+  <noscript><p class="notice">This page needs JavaScript to send the order to the API. The CLI and the API itself work without it.</p></noscript>
+
+  <main class="workspace">
+    <section class="panel order" aria-labelledby="order-heading">
+      <h2 id="order-heading">Order</h2>
+
+      <div class="presets">
+        <p id="presets-label" class="label">Load an example from the assignment</p>
+        <div class="preset-buttons" role="group" aria-labelledby="presets-label">
+          <button type="button" data-preset="fixed">1 · Fixed amount</button>
+          <button type="button" data-preset="percentage">2 · Percentage</button>
+          <button type="button" data-preset="category">3 · Category</button>
+          <button type="button" data-preset="points">4 · Points</button>
+          <button type="button" data-preset="seasonal">5 · Seasonal</button>
+          <button type="button" data-preset="all">All three categories</button>
+        </div>
+        <p id="preset-note" class="hint" aria-live="polite"></p>
+      </div>
+
+      <h3>Items</h3>
+      <div class="table-scroll">
+        <table class="items">
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">Category</th>
+              <th scope="col" class="num">Unit price (THB)</th>
+              <th scope="col" class="num">Quantity</th>
+              <th scope="col"><span class="sr-only">Remove</span></th>
+            </tr>
+          </thead>
+          <tbody id="items"></tbody>
+        </table>
+      </div>
+      <button type="button" id="add-item" class="secondary">Add item</button>
+
+      <h3>Campaigns <span class="hint">one per category, applied Coupon, then On Top, then Seasonal</span></h3>
+
+      <fieldset class="campaign">
+        <legend>Coupon</legend>
+        <div class="choice">
+          <input type="radio" name="coupon" id="coupon-none" value="" checked>
+          <label for="coupon-none">None</label>
+        </div>
+        <div class="choice">
+          <input type="radio" name="coupon" id="coupon-fixed" value="FixedAmount">
+          <label for="coupon-fixed">Fixed amount</label>
+          <label class="param" for="coupon-amount">Amount (THB)</label>
+          <input type="number" id="coupon-amount" aria-label="Coupon, fixed amount: Amount (THB)" data-for="coupon-fixed" step="0.01" inputmode="decimal" value="50">
+        </div>
+        <div class="choice">
+          <input type="radio" name="coupon" id="coupon-percent" value="Percentage">
+          <label for="coupon-percent">Percentage</label>
+          <label class="param" for="coupon-percentage">Percent off</label>
+          <input type="number" id="coupon-percentage" aria-label="Coupon, percentage: Percent off" data-for="coupon-percent" step="0.01" inputmode="decimal" value="10">
+        </div>
+      </fieldset>
+
+      <fieldset class="campaign">
+        <legend>On Top</legend>
+        <div class="choice">
+          <input type="radio" name="ontop" id="ontop-none" value="" checked>
+          <label for="ontop-none">None</label>
+        </div>
+        <div class="choice">
+          <input type="radio" name="ontop" id="ontop-category" value="CategoryPercentage">
+          <label for="ontop-category">Percentage off one category</label>
+          <label class="param" for="ontop-item-category">Category</label>
+          <select id="ontop-item-category" aria-label="On Top, percentage off one category: Category" data-for="ontop-category">
+            <option>Clothing</option>
+            <option>Accessories</option>
+            <option>Electronics</option>
+          </select>
+          <label class="param" for="ontop-percentage">Percent off the category</label>
+          <input type="number" id="ontop-percentage" aria-label="On Top, percentage off one category: Percent off the category" data-for="ontop-category" step="0.01" inputmode="decimal" value="15">
+        </div>
+        <div class="choice">
+          <input type="radio" name="ontop" id="ontop-points" value="Points">
+          <label for="ontop-points">Points <span class="hint">1 point = 1 THB, at most 20% of the total</span></label>
+          <label class="param" for="ontop-points-count">Points to use</label>
+          <input type="number" id="ontop-points-count" aria-label="On Top, points: Points to use" data-for="ontop-points" step="1" inputmode="numeric" value="68">
+        </div>
+      </fieldset>
+
+      <fieldset class="campaign">
+        <legend>Seasonal</legend>
+        <div class="choice">
+          <input type="radio" name="seasonal" id="seasonal-none" value="" checked>
+          <label for="seasonal-none">None</label>
+        </div>
+        <div class="choice">
+          <input type="radio" name="seasonal" id="seasonal-special" value="Seasonal">
+          <label for="seasonal-special">Special campaign</label>
+          <label class="param" for="seasonal-every">Every (THB)</label>
+          <input type="number" id="seasonal-every" aria-label="Seasonal, special campaign: Every (THB)" data-for="seasonal-special" step="0.01" inputmode="decimal" value="300">
+          <label class="param" for="seasonal-discount">Minus (THB)</label>
+          <input type="number" id="seasonal-discount" aria-label="Seasonal, special campaign: Minus (THB)" data-for="seasonal-special" step="0.01" inputmode="decimal" value="40">
+        </div>
+      </fieldset>
+
+      <div class="actions">
+        <button type="button" id="price" class="primary">Price the order</button>
+        <details class="json">
+          <summary>Request JSON</summary>
+          <pre id="request-json"></pre>
+        </details>
+      </div>
+    </section>
+
+    <section class="panel result" aria-labelledby="result-heading" aria-live="polite" id="result">
+      <h2 id="result-heading">Result</h2>
+      <p id="result-status" class="status" data-state="empty">Nothing priced yet.</p>
+
+      <div id="result-empty">
+        <p>Press <strong>Price the order</strong> to see the final price and how each campaign changed it.</p>
+        <p class="hint">Campaigns apply in a fixed order: Coupon, then On Top, then Seasonal. Each step works on the price left by the step before it and never takes more than what is left.</p>
+      </div>
+
+      <div id="result-ok" hidden>
+        <dl class="summary">
+          <div><dt>Subtotal</dt><dd id="subtotal">0.00</dd></div>
+          <div><dt>Total discount</dt><dd id="total-discount">0.00</dd></div>
+          <div class="final"><dt>Final price</dt><dd id="final-price">0.00</dd></div>
+          <div><dt>Points used</dt><dd id="points-used">0</dd></div>
+        </dl>
+        <div class="table-scroll">
+          <table class="breakdown">
+            <thead>
+              <tr>
+                <th scope="col">Step</th>
+                <th scope="col" class="num">Before</th>
+                <th scope="col" class="num">Discount</th>
+                <th scope="col" class="num">After</th>
+              </tr>
+            </thead>
+            <tbody id="breakdown"></tbody>
+          </table>
+        </div>
+        <p id="no-campaigns" class="hint" hidden>No campaigns were applied, so the final price is the subtotal.</p>
+      </div>
+
+      <div id="result-problem" hidden>
+        <p id="problem-title" class="problem-title"></p>
+        <ul id="problem-errors" class="errors"></ul>
+      </div>
+
+      <details class="json" id="response-details" hidden>
+        <summary>Response JSON</summary>
+        <pre id="response-json"></pre>
+      </details>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
